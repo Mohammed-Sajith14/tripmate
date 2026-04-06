@@ -3,6 +3,7 @@ import { useState } from "react";
 import { LoginForm } from "./LoginForm";
 import { SignupForm } from "./SignupForm";
 import { PermissionsScreen } from "./PermissionsScreen";
+import { ImageWithFallback } from "../figma/ImageWithFallback";
 
 interface AuthPageProps {
   isDark: boolean;
@@ -39,7 +40,7 @@ export function AuthPage({ isDark, onComplete, toggleTheme }: AuthPageProps) {
     <div className="min-h-screen flex flex-col lg:flex-row bg-white dark:bg-slate-900">
       {/* Left Side - Visual */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
-        <img
+        <ImageWithFallback
           src="https://images.unsplash.com/photo-1712479667983-9f2872d33fb9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwYXNzcG9ydCUyMHdvcmxkJTIwbWFwJTIwdHJhdmVsJTIwcGxhbm5pbmd8ZW58MXx8fHwxNzcwMzU2NTczfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
           alt="Travel planning"
           className="w-full h-full object-cover"

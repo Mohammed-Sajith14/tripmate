@@ -25,8 +25,6 @@ const durations = [
   { label: "15+ days", value: "15+" }
 ];
 
-const difficulties = ["Easy", "Moderate", "Challenging"];
-
 export function FiltersPanel({ filters, onFilterChange, onReset }: FiltersPanelProps) {
   const [localFilters, setLocalFilters] = useState<TripFilters>(filters);
 
@@ -59,15 +57,6 @@ export function FiltersPanel({ filters, onFilterChange, onReset }: FiltersPanelP
     onFilterChange(updated);
   };
 
-  const handleDifficultyChange = (value: string) => {
-    const updated = { 
-      ...localFilters, 
-      difficulty: localFilters.difficulty === value ? "" : value 
-    };
-    setLocalFilters(updated);
-    onFilterChange(updated);
-  };
-
   const handleRatingChange = (rating: number) => {
     const updated = { 
       ...localFilters, 
@@ -80,7 +69,6 @@ export function FiltersPanel({ filters, onFilterChange, onReset }: FiltersPanelP
   const activeFiltersCount = 
     (localFilters.category.length > 0 ? 1 : 0) +
     (localFilters.destination ? 1 : 0) +
-    (localFilters.difficulty ? 1 : 0) +
     (localFilters.organizerRating > 0 ? 1 : 0) +
     (localFilters.duration ? 1 : 0);
 
@@ -197,35 +185,6 @@ export function FiltersPanel({ filters, onFilterChange, onReset }: FiltersPanelP
                 }`}
               >
                 {duration.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Difficulty Level */}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
-            Difficulty Level
-          </label>
-          <div className="space-y-2">
-            {difficulties.map(difficulty => (
-              <button
-                key={difficulty}
-                onClick={() => handleDifficultyChange(difficulty)}
-                className={`w-full px-4 py-2.5 rounded-lg text-sm font-medium text-left transition-all flex items-center gap-2 ${
-                  localFilters.difficulty === difficulty
-                    ? "bg-teal-500 text-white shadow-md"
-                    : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-                }`}
-              >
-                <div className={`size-2 rounded-full ${
-                  difficulty === 'Easy' 
-                    ? localFilters.difficulty === difficulty ? 'bg-white' : 'bg-green-500'
-                    : difficulty === 'Moderate' 
-                    ? localFilters.difficulty === difficulty ? 'bg-white' : 'bg-yellow-500'
-                    : localFilters.difficulty === difficulty ? 'bg-white' : 'bg-orange-500'
-                }`} />
-                {difficulty}
               </button>
             ))}
           </div>

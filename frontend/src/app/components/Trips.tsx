@@ -1,5 +1,6 @@
 import { Calendar, DollarSign, User } from "lucide-react";
 import { useRef } from "react";
+import { ImageWithFallback } from "./figma/ImageWithFallback";
 
 interface TripCardProps {
   image: string;
@@ -14,7 +15,7 @@ function TripCard({ image, category, title, duration, budget, organizer }: TripC
   return (
     <div className="flex-shrink-0 w-80 bg-white dark:bg-slate-900 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
       <div className="relative h-48">
-        <img src={image} alt={title} className="w-full h-full object-cover" />
+        <ImageWithFallback src={image} alt={title} className="w-full h-full object-cover" />
         <span className="absolute top-4 left-4 px-3 py-1 bg-teal-500 text-white text-sm rounded-full">
           {category}
         </span>

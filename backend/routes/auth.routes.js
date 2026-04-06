@@ -2,6 +2,7 @@ import express from 'express';
 import {
   register,
   login,
+  googleAuth,
   checkUserId,
   getMe,
   updateProfile,
@@ -14,6 +15,7 @@ const router = express.Router();
 // Public routes
 router.post('/register', register);
 router.post('/login', login);
+router.post('/google', googleAuth);
 router.get('/check-userid/:userId', checkUserId);
 
 // Protected routes (require authentication)

@@ -40,7 +40,7 @@ backend/
 - Create free account
 - Create cluster
 - Get connection string
-- Update `MONGODB_URI` in `.env`
+- Update `MONGO_URI` in `.env`
 
 ### 2. Start Backend Server
 
@@ -54,7 +54,7 @@ npm run dev
 
 You should see:
 ```
-✅ MongoDB Connected Successfully
+✅ MongoDB Atlas Connected Successfully
 🚀 Server running on port 5000
 📍 Environment: development
 🌐 API URL: http://localhost:5000/api

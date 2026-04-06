@@ -33,8 +33,8 @@ export interface TripFormData {
   title: string;
   destination: string;
   country: string;
+  location: string;
   category: string;
-  difficulty: string;
   startDate: string;
   endDate: string;
 
@@ -83,6 +83,7 @@ export function CreateTripPage({
     formState: { errors },
   } = useForm<TripFormData>({
     defaultValues: {
+      location: "",
       itinerary: [{ day: 1, title: "", description: "" }],
       inclusions: [""],
       exclusions: [""],
@@ -145,8 +146,8 @@ export function CreateTripPage({
           title: data.title,
           destination: data.destination,
           country: data.country,
+          location: data.location,
           category: data.category,
-          difficulty: data.difficulty,
           startDate: data.startDate,
           endDate: data.endDate,
           priceMin: data.priceMin,
@@ -225,8 +226,8 @@ export function CreateTripPage({
           title: formData.title,
           destination: formData.destination,
           country: formData.country,
+          location: formData.location,
           category: formData.category,
-          difficulty: formData.difficulty,
           startDate: formData.startDate,
           endDate: formData.endDate,
           priceMin: formData.priceMin,
@@ -302,7 +303,12 @@ export function CreateTripPage({
                 {/* Form Sections - Left Column */}
                 <div className="lg:col-span-2 space-y-6">
                   {/* Basic Trip Information */}
-                  <BasicInfoSection register={register} errors={errors} />
+                  <BasicInfoSection
+                    register={register}
+                    setValue={setValue}
+                    watch={watch}
+                    errors={errors}
+                  />
 
                   {/* Pricing & Capacity */}
                   <PricingSection register={register} errors={errors} />

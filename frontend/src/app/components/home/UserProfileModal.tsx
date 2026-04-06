@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, MapPin, Calendar, Users, Building2, Loader2, UserPlus, UserMinus } from 'lucide-react';
+import { X, MapPin, Calendar, Users, Building2, Loader2, UserPlus, UserMinus, Star } from 'lucide-react';
 import { toast } from 'sonner';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
 interface UserProfileModalProps {
   userId: string;
@@ -31,17 +33,41 @@ interface UserProfile {
   createdAt: string;
 }
 
+interface OrganizerReviewItem {
+  _id: string;
+  reviewerUserIdSnapshot: string;
+  trip?: {
+    title?: string;
+    destination?: string;
+  };
+  organizerReview: {
+    rating: number;
+    text: string;
+  };
+  createdAt: string;
+}
+
 export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
   const [isFollowLoading, setIsFollowLoading] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
+  const [organizerReviews, setOrganizerReviews] = useState<OrganizerReviewItem[]>([]);
+  const [isReviewsLoading, setIsReviewsLoading] = useState(false);
 
   useEffect(() => {
     fetchProfile();
     checkFollowStatus();
   }, [userId]);
+
+  useEffect(() => {
+    if (profile?.role === 'organizer' && profile?._id) {
+      fetchOrganizerReviews(profile._id);
+    } else {
+      setOrganizerReviews([]);
+    }
+  }, [profile?._id, profile?.role]);
 
   const fetchProfile = async () => {
     try {
@@ -84,6 +110,25 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
       }
     } catch (error) {
       console.error('Error checking follow status:', error);
+    }
+  };
+
+  const fetchOrganizerReviews = async (organizerId: string) => {
+    setIsReviewsLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/reviews/organizers/${organizerId}?limit=10`);
+      const data = await response.json().catch(() => null);
+
+      if (response.ok && data?.success) {
+        setOrganizerReviews(Array.isArray(data?.data?.reviews) ? data.data.reviews : []);
+      } else {
+        setOrganizerReviews([]);
+      }
+    } catch (error) {
+      console.error('Error fetching organizer reviews:', error);
+      setOrganizerReviews([]);
+    } finally {
+      setIsReviewsLoading(false);
     }
   };
 
@@ -148,6 +193,9 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
     month: 'long',
     year: 'numeric',
   });
+  const averageRating = organizerReviews.length > 0
+    ? organizerReviews.reduce((sum, review) => sum + (review.organizerReview?.rating || 0), 0) / organizerReviews.length
+    : 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
@@ -332,6 +380,54 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
               </p>
             </div>
           </div>
+
+          {profile.role === 'organizer' && (
+            <div className="mt-6 border-t border-slate-200 dark:border-slate-700 pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-semibold text-slate-900 dark:text-white">Organizer Reviews</h4>
+                {organizerReviews.length > 0 && (
+                  <div className="flex items-center gap-1 text-sm text-slate-600 dark:text-slate-400">
+                    <Star className="size-4 fill-amber-400 text-amber-400" />
+                    <span>{averageRating.toFixed(1)} ({organizerReviews.length})</span>
+                  </div>
+                )}
+              </div>
+
+              {isReviewsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="size-5 animate-spin text-teal-500" />
+                </div>
+              ) : organizerReviews.length > 0 ? (
+                <div className="space-y-3">
+                  {organizerReviews.slice(0, 5).map((review) => (
+                    <div key={review._id} className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              className={`size-4 ${star <= (review.organizerReview?.rating || 0) ? 'fill-amber-400 text-amber-400' : 'text-slate-300 dark:text-slate-600'}`}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          @{review.reviewerUserIdSnapshot || 'traveler'}
+                        </span>
+                      </div>
+                      {review.organizerReview?.text && (
+                        <p className="text-sm text-slate-700 dark:text-slate-300">{review.organizerReview.text}</p>
+                      )}
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                        {review.trip?.title || 'Trip review'}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500 dark:text-slate-400">No organizer reviews yet.</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

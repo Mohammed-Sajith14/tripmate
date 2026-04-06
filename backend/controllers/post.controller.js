@@ -2,6 +2,7 @@ import Post from '../models/Post.model.js';
 import Comment from '../models/Comment.model.js';
 import Follow from '../models/Follow.model.js';
 import Notification from '../models/Notification.model.js';
+import User from '../models/User.model.js';
 
 // Create a new post
 export const createPost = async (req, res) => {
@@ -110,7 +111,7 @@ export const getUserPosts = async (req, res) => {
     const { page = 1, limit = 20 } = req.query;
     const skip = (page - 1) * limit;
 
-    const user = await mongoose.model('User').findOne({ userId: userId.toLowerCase() });
+    const user = await User.findOne({ userId: userId.toLowerCase() });
     
     if (!user) {
       return res.status(404).json({

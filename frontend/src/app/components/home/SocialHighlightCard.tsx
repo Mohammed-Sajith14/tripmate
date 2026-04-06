@@ -1,4 +1,5 @@
 import { MapPin } from "lucide-react";
+import { ImageWithFallback } from "../figma/ImageWithFallback";
 
 interface SocialHighlightCardProps {
   userId: string;
@@ -19,7 +20,7 @@ export function SocialHighlightCard({
     <div className="flex-shrink-0 w-80 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden hover:shadow-lg transition-shadow cursor-pointer">
       {/* Image */}
       <div className="aspect-[4/3] bg-slate-100 dark:bg-slate-800 overflow-hidden">
-        <img
+        <ImageWithFallback
           src={image}
           alt={destination}
           className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
@@ -32,7 +33,7 @@ export function SocialHighlightCard({
         <div className="flex items-center gap-3 mb-3">
           <div className="size-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex items-center justify-center">
             {userAvatar ? (
-              <img src={userAvatar} alt={userId} className="w-full h-full object-cover" />
+              <ImageWithFallback src={userAvatar} alt={userId} className="w-full h-full object-cover" />
             ) : (
               <span className="text-slate-600 dark:text-slate-300 font-medium">
                 {userId.charAt(0).toUpperCase()}

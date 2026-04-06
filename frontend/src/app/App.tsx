@@ -13,9 +13,10 @@ import { TripDetailPage } from "./components/trips/TripDetailPage";
 import { CreateTripPage } from "./components/create/CreateTripPage";
 import { MessagesPage } from "./components/messages/MessagesPage";
 import { MapsPage } from "./components/maps/MapsPage";
+import { TripPlannerPage } from "./components/chatbot/TripPlannerPage";
 import { Toaster } from "./components/ui/sonner";
 
-type Page = "landing" | "auth" | "home" | "profile" | "trips" | "tripDetail" | "maps" | "messages" | "create" | "more";
+type Page = "landing" | "auth" | "home" | "profile" | "trips" | "planner" | "tripDetail" | "maps" | "messages" | "create" | "more";
 
 export default function App() {
   const [isDark, setIsDark] = useState(false);
@@ -136,6 +137,19 @@ export default function App() {
     );
   }
 
+  if (currentPage === "planner") {
+    return (
+      <>
+        <TripPlannerPage
+          isDark={isDark}
+          toggleTheme={toggleTheme}
+          onNavigate={handleNavigate}
+        />
+        <Toaster />
+      </>
+    );
+  }
+
   if (currentPage === "tripDetail" && selectedTrip) {
     return (
       <>
@@ -185,6 +199,7 @@ export default function App() {
           isDark={isDark}
           toggleTheme={toggleTheme}
           onNavigate={handleNavigate}
+          onViewTripDetail={handleViewTripDetail}
         />
         <Toaster />
       </>
@@ -243,6 +258,12 @@ export default function App() {
             className="px-3 py-1 bg-white text-teal-600 text-xs rounded font-medium hover:bg-gray-100 transition-colors"
           >
             Trips
+          </button>
+          <button
+            onClick={() => setCurrentPage("planner")}
+            className="px-3 py-1 bg-white text-teal-600 text-xs rounded font-medium hover:bg-gray-100 transition-colors"
+          >
+            Planner
           </button>
           <button
             onClick={() => setCurrentPage("maps")}

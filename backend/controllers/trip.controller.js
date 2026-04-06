@@ -1,13 +1,139 @@
 import Trip from '../models/Trip.model.js';
+import Booking from '../models/Booking.model.js';
+
+const NOMINATIM_SEARCH_URL = 'https://nominatim.openstreetmap.org/search';
+
+const fetchLocationSuggestions = async (query, limit = 6) => {
+  if (!query || typeof query !== 'string') {
+    return [];
+  }
+
+  const params = new URLSearchParams({
+    q: query,
+    format: 'json',
+    limit: String(limit),
+    addressdetails: '0',
+  });
+
+  const response = await fetch(`${NOMINATIM_SEARCH_URL}?${params.toString()}`, {
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': 'TripMate/1.0 (trip-location-geocoder)',
+    },
+  });
+
+  if (!response.ok) {
+    return [];
+  }
+
+  const results = await response.json();
+  if (!Array.isArray(results) || results.length === 0) {
+    return [];
+  }
+
+  return results
+    .map((item) => ({
+      name: typeof item?.display_name === 'string' ? item.display_name : '',
+      latitude: Number(item?.lat),
+      longitude: Number(item?.lon),
+    }))
+    .filter(
+      (item) =>
+        item.name &&
+        Number.isFinite(item.latitude) &&
+        Number.isFinite(item.longitude)
+    );
+};
+
+const geocodeTripLocation = async (query) => {
+  if (!query || typeof query !== 'string') {
+    return null;
+  }
+
+  try {
+    const suggestions = await fetchLocationSuggestions(query, 1);
+    if (suggestions.length === 0) {
+      return null;
+    }
+
+    return {
+      latitude: suggestions[0].latitude,
+      longitude: suggestions[0].longitude,
+    };
+  } catch (error) {
+    console.error('Location geocoding error:', error);
+    return null;
+  }
+};
+
+export const suggestTripLocations = async (req, res) => {
+  try {
+    const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+
+    if (query.length < 2) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          locations: [],
+        },
+      });
+    }
+
+    const suggestions = await fetchLocationSuggestions(query, 6);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        locations: suggestions,
+      },
+    });
+  } catch (error) {
+    console.error('Suggest trip locations error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching location suggestions',
+      error: error.message,
+    });
+  }
+};
 
 // Create a new trip
 export const createTrip = async (req, res) => {
   try {
-    const { title, destination, country, category, difficulty, startDate, endDate, priceMin, priceMax, totalSpots, bookingDeadline, coverImage, galleryImages, description, itinerary, inclusions, exclusions, cancellationPolicy, refundPolicy, minimumGroupSize, requirements, importantNotes } = req.body;
+    const { title, destination, country, location, category, startDate, endDate, priceMin, priceMax, totalSpots, bookingDeadline, coverImage, galleryImages, description, itinerary, inclusions, exclusions, cancellationPolicy, refundPolicy, minimumGroupSize, requirements, importantNotes } = req.body;
     const organizerId = req.user._id;
+    const normalizedLocation = typeof location === 'string' ? location.trim() : '';
+
+    const cleanedGalleryImages = Array.isArray(galleryImages)
+      ? galleryImages.filter((image) => typeof image === 'string' && image.trim() !== '')
+      : [];
+
+    const cleanedItinerary = Array.isArray(itinerary)
+      ? itinerary
+          .map((item, index) => ({
+            day: Number(item?.day) || index + 1,
+            title: typeof item?.title === 'string' ? item.title.trim() : '',
+            description: typeof item?.description === 'string' ? item.description.trim() : '',
+          }))
+          .filter((item) => item.title || item.description)
+      : [];
+
+    const cleanedInclusions = Array.isArray(inclusions)
+      ? inclusions
+          .filter((item) => typeof item === 'string')
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : [];
+
+    const cleanedExclusions = Array.isArray(exclusions)
+      ? exclusions
+          .filter((item) => typeof item === 'string')
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : [];
 
     // Validate required fields
-    if (!title || !destination || !country || !category || !startDate || !endDate || !priceMin || !priceMax || !totalSpots || !description) {
+    if (!title || !destination || !country || !normalizedLocation || !category || !startDate || !endDate || !priceMin || !priceMax || !totalSpots || !description) {
       return res.status(400).json({
         success: false,
         message: 'Please provide all required fields',
@@ -15,6 +141,7 @@ export const createTrip = async (req, res) => {
           title: !title,
           destination: !destination,
           country: !country,
+          location: !normalizedLocation,
           category: !category,
           startDate: !startDate,
           endDate: !endDate,
@@ -23,6 +150,17 @@ export const createTrip = async (req, res) => {
           totalSpots: !totalSpots,
           description: !description,
         }
+      });
+    }
+
+    const geocodedLocation = await geocodeTripLocation(
+      [normalizedLocation, destination, country].filter(Boolean).join(', ')
+    );
+
+    if (!geocodedLocation) {
+      return res.status(400).json({
+        success: false,
+        message: 'Unable to map this location. Please provide a more specific location.',
       });
     }
 
@@ -38,8 +176,12 @@ export const createTrip = async (req, res) => {
       title: title.trim(),
       destination: destination.trim(),
       country: country.trim(),
+      location: {
+        name: normalizedLocation,
+        latitude: geocodedLocation.latitude,
+        longitude: geocodedLocation.longitude,
+      },
       category,
-      difficulty,
       startDate: new Date(startDate),
       endDate: new Date(endDate),
       priceMin,
@@ -48,17 +190,17 @@ export const createTrip = async (req, res) => {
       availableSpots: totalSpots,
       bookingDeadline: bookingDeadline ? new Date(bookingDeadline) : null,
       organizer: organizerId,
-      coverImage,
-      galleryImages: galleryImages || [],
+      coverImage: typeof coverImage === 'string' && coverImage.trim() !== '' ? coverImage.trim() : undefined,
+      galleryImages: cleanedGalleryImages,
       description: description.trim(),
-      itinerary: itinerary || [],
-      inclusions: inclusions || [],
-      exclusions: exclusions || [],
-      cancellationPolicy,
-      refundPolicy,
+      itinerary: cleanedItinerary,
+      inclusions: cleanedInclusions,
+      exclusions: cleanedExclusions,
+      cancellationPolicy: typeof cancellationPolicy === 'string' && cancellationPolicy.trim() !== '' ? cancellationPolicy.trim() : undefined,
+      refundPolicy: typeof refundPolicy === 'string' && refundPolicy.trim() !== '' ? refundPolicy.trim() : undefined,
       minimumGroupSize,
-      requirements,
-      importantNotes,
+      requirements: typeof requirements === 'string' && requirements.trim() !== '' ? requirements.trim() : undefined,
+      importantNotes: typeof importantNotes === 'string' && importantNotes.trim() !== '' ? importantNotes.trim() : undefined,
       isPublished: true,
       isDraft: false,
     });
@@ -84,8 +226,19 @@ export const createTrip = async (req, res) => {
 // Get all published trips
 export const getAllTrips = async (req, res) => {
   try {
-    const { category, destination, minPrice, maxPrice, page = 1, limit = 20 } = req.query;
-    const skip = (page - 1) * limit;
+    const {
+      category,
+      destination,
+      minPrice,
+      maxPrice,
+      page = 1,
+      limit = 20,
+      summary = 'true',
+    } = req.query;
+    const parsedPage = Math.max(1, Number(page) || 1);
+    const parsedLimit = Math.min(100, Math.max(1, Number(limit) || 20));
+    const skip = (parsedPage - 1) * parsedLimit;
+    const isSummaryMode = String(summary).toLowerCase() !== 'false';
 
     // Build filter
     const filter = { isPublished: true };
@@ -97,12 +250,20 @@ export const getAllTrips = async (req, res) => {
       if (maxPrice) filter.priceMin.$gte = parseInt(maxPrice);
     }
 
-    const trips = await Trip.find(filter)
+    const query = Trip.find(filter)
       .populate('organizer', 'userId fullName profilePicture role organizationName')
       .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
+      .limit(parsedLimit)
       .skip(skip)
       .lean();
+
+    if (isSummaryMode) {
+      query.select(
+        'title destination country category startDate endDate priceMin priceMax availableSpots totalSpots coverImage location organizer createdAt'
+      );
+    }
+
+    const trips = await query;
 
     const total = await Trip.countDocuments(filter);
 
@@ -111,8 +272,8 @@ export const getAllTrips = async (req, res) => {
       data: {
         trips,
         pagination: {
-          currentPage: parseInt(page),
-          totalPages: Math.ceil(total / limit),
+          currentPage: parsedPage,
+          totalPages: Math.ceil(total / parsedLimit),
           totalTrips: total,
           hasMore: skip + trips.length < total,
         },
@@ -217,8 +378,48 @@ export const updateTrip = async (req, res) => {
       });
     }
 
+    const updatePayload = { ...req.body };
+
+    if (typeof updatePayload.location === 'string') {
+      const normalizedLocation = updatePayload.location.trim();
+
+      if (!normalizedLocation) {
+        return res.status(400).json({
+          success: false,
+          message: 'Location cannot be empty',
+        });
+      }
+
+      const locationCountry =
+        typeof updatePayload.country === 'string' && updatePayload.country.trim() !== ''
+          ? updatePayload.country.trim()
+          : trip.country;
+
+      const locationDestination =
+        typeof updatePayload.destination === 'string' && updatePayload.destination.trim() !== ''
+          ? updatePayload.destination.trim()
+          : trip.destination;
+
+      const geocodedLocation = await geocodeTripLocation(
+        [normalizedLocation, locationDestination, locationCountry].filter(Boolean).join(', ')
+      );
+
+      if (!geocodedLocation) {
+        return res.status(400).json({
+          success: false,
+          message: 'Unable to map this location. Please provide a more specific location.',
+        });
+      }
+
+      updatePayload.location = {
+        name: normalizedLocation,
+        latitude: geocodedLocation.latitude,
+        longitude: geocodedLocation.longitude,
+      };
+    }
+
     // Update fields
-    trip = await Trip.findByIdAndUpdate(tripId, req.body, {
+    trip = await Trip.findByIdAndUpdate(tripId, updatePayload, {
       new: true,
       runValidators: true,
     }).populate('organizer', 'userId fullName profilePicture role organizationName');
@@ -316,6 +517,141 @@ export const publishTrip = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error publishing trip',
+      error: error.message,
+    });
+  }
+};
+
+// Book a trip (traveler only)
+export const bookTrip = async (req, res) => {
+  try {
+    const { tripId } = req.params;
+    const travelerId = req.user._id;
+
+    if (req.user.role !== 'traveler') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only travelers can book trips',
+      });
+    }
+
+    const trip = await Trip.findById(tripId).populate('organizer', 'userId fullName');
+
+    if (!trip || !trip.isPublished) {
+      return res.status(404).json({
+        success: false,
+        message: 'Trip not found',
+      });
+    }
+
+    if (trip.organizer._id.toString() === travelerId.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot book your own trip',
+      });
+    }
+
+    if (trip.bookingDeadline && new Date() > new Date(trip.bookingDeadline)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Booking deadline has passed for this trip',
+      });
+    }
+
+    if (trip.availableSpots <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No spots available for this trip',
+      });
+    }
+
+    const existingBooking = await Booking.findOne({
+      trip: trip._id,
+      traveler: travelerId,
+      status: 'confirmed',
+    });
+
+    if (existingBooking) {
+      return res.status(400).json({
+        success: false,
+        message: 'You have already booked this trip',
+      });
+    }
+
+    const booking = await Booking.create({
+      trip: trip._id,
+      traveler: travelerId,
+      organizer: trip.organizer._id,
+      status: 'confirmed',
+      priceAtBooking: trip.priceMin,
+    });
+
+    trip.availableSpots = Math.max(0, trip.availableSpots - 1);
+    trip.bookings.push(booking._id);
+    await trip.save();
+
+    const populatedBooking = await Booking.findById(booking._id)
+      .populate('trip', 'title destination startDate endDate coverImage')
+      .populate('traveler', 'userId fullName profilePicture role')
+      .populate('organizer', 'userId fullName profilePicture role organizationName');
+
+    res.status(201).json({
+      success: true,
+      message: 'Trip booked successfully',
+      data: {
+        booking: populatedBooking,
+        trip: {
+          _id: trip._id,
+          availableSpots: trip.availableSpots,
+          totalSpots: trip.totalSpots,
+        },
+      },
+    });
+  } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: 'You have already booked this trip',
+      });
+    }
+
+    console.error('Book trip error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error booking trip',
+      error: error.message,
+    });
+  }
+};
+
+// Get current traveler's bookings
+export const getMyBookings = async (req, res) => {
+  try {
+    const travelerId = req.user._id;
+
+    const bookings = await Booking.find({ traveler: travelerId, status: 'confirmed' })
+      .populate({
+        path: 'trip',
+        select: 'title destination country startDate endDate coverImage priceMin priceMax availableSpots totalSpots organizer',
+        populate: {
+          path: 'organizer',
+          select: 'userId fullName profilePicture role organizationName',
+        },
+      })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      data: {
+        bookings,
+      },
+    });
+  } catch (error) {
+    console.error('Get my bookings error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching bookings',
       error: error.message,
     });
   }

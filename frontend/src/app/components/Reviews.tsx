@@ -1,5 +1,6 @@
 import { Star } from "lucide-react";
 import { useRef } from "react";
+import { ImageWithFallback } from "./figma/ImageWithFallback";
 
 interface ReviewCardProps {
   avatar: string;
@@ -13,7 +14,7 @@ function ReviewCard({ avatar, name, destination, rating, review }: ReviewCardPro
   return (
     <div className="flex-shrink-0 w-96 bg-slate-50 dark:bg-slate-950 rounded-2xl p-8 border border-slate-200 dark:border-slate-800 hover:shadow-lg transition-all duration-300">
       <div className="flex items-center gap-4 mb-4">
-        <img
+        <ImageWithFallback
           src={avatar}
           alt={name}
           className="size-14 rounded-full object-cover"

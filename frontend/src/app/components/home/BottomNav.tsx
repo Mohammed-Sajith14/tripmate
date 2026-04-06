@@ -1,4 +1,4 @@
-import { Compass, Home, Map, MessageCircle, User, PlusCircle } from "lucide-react";
+import { Bot, Compass, Home, MessageCircle, User, PlusCircle } from "lucide-react";
 
 interface BottomNavProps {
   activePage: string;
@@ -9,6 +9,7 @@ export function BottomNav({ activePage, onNavigate }: BottomNavProps) {
   const navItems = [
     { id: "home", icon: Home, label: "Home" },
     { id: "trips", icon: Compass, label: "Trips" },
+    { id: "planner", icon: Bot, label: "Planner" },
     { id: "create", icon: PlusCircle, label: "Create" },
     { id: "messages", icon: MessageCircle, label: "Messages" },
     { id: "profile", icon: User, label: "Profile" },

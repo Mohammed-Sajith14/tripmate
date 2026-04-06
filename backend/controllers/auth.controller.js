@@ -1,5 +1,43 @@
 import User from '../models/User.model.js';
 import { generateToken } from '../middleware/auth.middleware.js';
+import { OAuth2Client } from 'google-auth-library';
+
+const googleClient = new OAuth2Client();
+
+const sanitizeUserId = (value = '') => {
+  const sanitized = value
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .replace(/_{2,}/g, '_');
+
+  if (!sanitized) {
+    return 'traveler';
+  }
+
+  if (sanitized.length >= 3) {
+    return sanitized.slice(0, 30);
+  }
+
+  return `${sanitized}${'0'.repeat(3 - sanitized.length)}`;
+};
+
+const generateUniqueUserId = async (email, preferredUserId = '') => {
+  const baseFromEmail = email?.split('@')?.[0] || 'traveler';
+  const baseUserId = sanitizeUserId(preferredUserId || baseFromEmail);
+
+  let candidate = baseUserId;
+  let counter = 0;
+
+  while (await User.findOne({ userId: candidate })) {
+    counter += 1;
+    const suffix = `_${counter}`;
+    const maxBaseLength = Math.max(1, 30 - suffix.length);
+    candidate = `${baseUserId.slice(0, maxBaseLength)}${suffix}`;
+  }
+
+  return candidate;
+};
 
 // @desc    Register new user
 // @route   POST /api/auth/register
@@ -138,6 +176,194 @@ export const login = async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: error.message || 'Error logging in'
+    });
+  }
+};
+
+// @desc    Login/Signup with Google
+// @route   POST /api/auth/google
+// @access  Public
+export const googleAuth = async (req, res) => {
+  try {
+    const { idToken, mode = 'login', role, organizationName, userId } = req.body;
+
+    if (!idToken) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Google ID token is required'
+      });
+    }
+
+    if (!['login', 'signup'].includes(mode)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Mode must be either login or signup'
+      });
+    }
+
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      return res.status(500).json({
+        status: 'error',
+        message: 'Google authentication is not configured on the server'
+      });
+    }
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID
+    });
+
+    const payload = ticket.getPayload();
+
+    if (!payload || !payload.email || !payload.sub) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Unable to verify Google account'
+      });
+    }
+
+    if (payload.email_verified === false) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Google email is not verified'
+      });
+    }
+
+    const email = payload.email.toLowerCase();
+    const googleId = payload.sub;
+    const fullName = payload.name?.trim() || email.split('@')[0];
+    const profilePicture = payload.picture || '';
+
+    let user = await User.findOne({
+      $or: [
+        { googleId },
+        { email }
+      ]
+    }).select('+password');
+
+    if (mode === 'signup') {
+      const normalizedRole = role?.toLowerCase();
+
+      if (user) {
+        if (!user.isActive) {
+          return res.status(401).json({
+            status: 'error',
+            message: 'Your account has been deactivated'
+          });
+        }
+
+        if (!user.googleId) {
+          user.googleId = googleId;
+        }
+
+        if (!user.profilePicture && profilePicture) {
+          user.profilePicture = profilePicture;
+        }
+
+        user.lastLogin = Date.now();
+        await user.save();
+
+        const token = generateToken(user._id);
+
+        return res.status(200).json({
+          status: 'success',
+          message: 'Account already exists. Logged in successfully',
+          data: {
+            token,
+            user: user.getPublicProfile()
+          }
+        });
+      }
+
+      if (!normalizedRole || !['traveler', 'organizer'].includes(normalizedRole)) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Role is required to create a new account'
+        });
+      }
+
+      if (normalizedRole === 'organizer' && !organizationName?.trim()) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Organization name is required for organizers'
+        });
+      }
+
+      const uniqueUserId = await generateUniqueUserId(email, userId);
+
+      user = await User.create({
+        userId: uniqueUserId,
+        email,
+        fullName,
+        role: normalizedRole,
+        organizationName: normalizedRole === 'organizer' ? organizationName.trim() : undefined,
+        authProvider: 'google',
+        googleId,
+        profilePicture,
+        lastLogin: Date.now()
+      });
+
+      const token = generateToken(user._id);
+
+      return res.status(201).json({
+        status: 'success',
+        message: 'Google signup successful',
+        data: {
+          token,
+          user: user.getPublicProfile()
+        }
+      });
+    }
+
+    if (!user) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'No account found with this Google email. Please sign up first.'
+      });
+    }
+
+    if (!user.isActive) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Your account has been deactivated'
+      });
+    }
+
+    if (user.googleId && user.googleId !== googleId) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'This Google account is not linked to the selected profile'
+      });
+    }
+
+    if (!user.googleId) {
+      user.googleId = googleId;
+    }
+
+    if (!user.profilePicture && profilePicture) {
+      user.profilePicture = profilePicture;
+    }
+
+    user.lastLogin = Date.now();
+    await user.save();
+
+    const token = generateToken(user._id);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Google login successful',
+      data: {
+        token,
+        user: user.getPublicProfile()
+      }
+    });
+  } catch (error) {
+    console.error('Google auth error:', error);
+    const statusCode = error.message?.includes('Wrong number of segments') ? 401 : 500;
+
+    res.status(statusCode).json({
+      status: 'error',
+      message: statusCode === 401 ? 'Invalid Google token' : 'Error authenticating with Google'
     });
   }
 };

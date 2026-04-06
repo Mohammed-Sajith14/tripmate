@@ -1,5 +1,6 @@
 import { Calendar, MapPin, Users, Star, DollarSign } from "lucide-react";
 import { Trip } from "./TripsPage";
+import { ImageWithFallback } from "../figma/ImageWithFallback";
 
 interface TripCardProps {
   trip: Trip;
@@ -20,11 +21,17 @@ export function TripCard({ trip, onViewDetails }: TripCardProps) {
     <div className="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 hover:border-teal-300 dark:hover:border-teal-700 transition-all hover:shadow-lg group">
       {/* Trip Image */}
       <div className="relative aspect-[4/3] overflow-hidden">
-        <img
-          src={trip.image}
-          alt={trip.title}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-        />
+        {trip.image ? (
+          <ImageWithFallback
+            src={trip.image}
+            alt={trip.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : (
+          <div className="w-full h-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 text-sm font-medium">
+            No image provided
+          </div>
+        )}
         
         {/* Category Badge */}
         <div className="absolute top-3 left-3">
@@ -78,19 +85,6 @@ export function TripCard({ trip, onViewDetails }: TripCardProps) {
             </span>
           </div>
 
-          {/* Difficulty */}
-          <div className="flex items-center gap-2 text-sm">
-            <div className={`size-2 rounded-full flex-shrink-0 ${
-              trip.difficulty === 'Easy' 
-                ? 'bg-green-500' 
-                : trip.difficulty === 'Moderate' 
-                ? 'bg-yellow-500' 
-                : 'bg-orange-500'
-            }`} />
-            <span className="text-slate-700 dark:text-slate-300">
-              {trip.difficulty}
-            </span>
-          </div>
         </div>
 
         {/* Organizer Info */}
@@ -105,12 +99,14 @@ export function TripCard({ trip, onViewDetails }: TripCardProps) {
               <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
                 {trip.organizerName}
               </p>
-              <div className="flex items-center gap-1">
-                <Star className="size-3 fill-yellow-400 text-yellow-400" />
-                <span className="text-xs text-slate-600 dark:text-slate-400">
-                  {trip.organizerRating.toFixed(1)}
-                </span>
-              </div>
+              {trip.organizerRating > 0 && (
+                <div className="flex items-center gap-1">
+                  <Star className="size-3 fill-yellow-400 text-yellow-400" />
+                  <span className="text-xs text-slate-600 dark:text-slate-400">
+                    {trip.organizerRating.toFixed(1)}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 

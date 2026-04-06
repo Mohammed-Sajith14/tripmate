@@ -1,4 +1,5 @@
 import { TrendingUp } from "lucide-react";
+import { ImageWithFallback } from "../figma/ImageWithFallback";
 
 interface DestinationCardProps {
   name: string;
@@ -16,7 +17,7 @@ export function DestinationCard({
   return (
     <div className="group cursor-pointer">
       <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800">
-        <img
+        <ImageWithFallback
           src={image}
           alt={name}
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"

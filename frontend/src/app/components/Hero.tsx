@@ -1,4 +1,5 @@
 import { ChevronDown } from "lucide-react";
+import { ImageWithFallback } from "./figma/ImageWithFallback";
 
 interface HeroProps {
   onAuthClick?: () => void;
@@ -9,7 +10,7 @@ export function Hero({ onAuthClick }: HeroProps) {
     <section className="relative h-screen flex items-center justify-center overflow-hidden">
       {/* Background Image */}
       <div className="absolute inset-0 z-0">
-        <img
+        <ImageWithFallback
           src="https://media.istockphoto.com/id/1160846801/photo/lake-tahoe-cove.jpg?s=612x612&w=0&k=20&c=HlJJEt9SRN9qZn30VUPPWxIZXRgQrvnscRvthq7-lUg="
           alt="Travel destination"
           className="w-full h-full object-cover blur-sm scale-105"

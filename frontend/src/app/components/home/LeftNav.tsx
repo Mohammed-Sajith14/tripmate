@@ -1,4 +1,5 @@
 import {
+  Bot,
   Compass,
   Home,
   Map,
@@ -17,6 +18,7 @@ export function LeftNav({ activePage, onNavigate }: LeftNavProps) {
   const navItems = [
     { id: "home", icon: Home, label: "Home" },
     { id: "trips", icon: Compass, label: "Trips" },
+    { id: "planner", icon: Bot, label: "Planner" },
     { id: "maps", icon: Map, label: "Maps" },
     { id: "messages", icon: MessageCircle, label: "Messages" },
     { id: "profile", icon: User, label: "Profile" },

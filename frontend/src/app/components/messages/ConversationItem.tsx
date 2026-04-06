@@ -2,7 +2,7 @@ interface ConversationItemProps {
   id: string;
   name: string;
   userId: string;
-  role: "traveler" | "organizer";
+  profilePicture?: string;
   lastMessage: string;
   timestamp: string;
   unreadCount?: number;
@@ -13,7 +13,7 @@ interface ConversationItemProps {
 export function ConversationItem({
   name,
   userId,
-  role,
+  profilePicture,
   lastMessage,
   timestamp,
   unreadCount = 0,
@@ -31,28 +31,27 @@ export function ConversationItem({
     >
       <div className="flex gap-3">
         {/* Profile Picture */}
-        <div className="size-12 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center flex-shrink-0">
-          <span className="text-base font-semibold text-white">
-            {userId.charAt(0).toUpperCase()}
-          </span>
-        </div>
+        {profilePicture ? (
+          <img
+            src={profilePicture}
+            alt={name}
+            className="size-12 rounded-full object-cover flex-shrink-0"
+          />
+        ) : (
+          <div className="size-12 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center flex-shrink-0">
+            <span className="text-base font-semibold text-white">
+              {(name || userId || "U").charAt(0).toUpperCase()}
+            </span>
+          </div>
+        )}
 
         {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between mb-1">
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="min-w-0">
               <h3 className="font-medium text-slate-900 dark:text-white truncate">
                 {name}
               </h3>
-              <span
-                className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${
-                  role === "organizer"
-                    ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
-                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
-                }`}
-              >
-                {role === "organizer" ? "Organizer" : "Traveler"}
-              </span>
             </div>
             <span className="text-xs text-slate-400 dark:text-slate-500 flex-shrink-0 ml-2">
               {timestamp}

@@ -77,6 +77,20 @@ Content-Type: application/json
 }
 ```
 
+**Google Login / Signup**
+```http
+POST /api/auth/google
+Content-Type: application/json
+
+{
+  "idToken": "<google_id_token>",
+  "mode": "login" | "signup",
+  "role": "traveler" | "organizer", // Required for signup when creating a new account
+  "organizationName": "Travel Co", // Required if role is organizer
+  "userId": "preferred_user_id" // Optional for signup
+}
+```
+
 **Check User ID Availability**
 ```http
 GET /api/auth/check-userid/:userId
@@ -190,7 +204,9 @@ Content-Type: application/json
 backend/
 ├── controllers/       # Request handlers
 ├── models/           # Database models
+├── rag/              # Python RAG pipeline (embeddings + FAISS retrieval)
 ├── routes/           # API routes
+├── services/         # Service layer (includes RAG orchestrator services)
 ├── middleware/       # Custom middleware
 ├── utils/            # Helper functions
 ├── .env.example      # Environment variables template
@@ -213,6 +229,71 @@ Test the API using:
 - Keep your `.env` file secure and never commit it
 - Use strong JWT_SECRET in production
 - Enable HTTPS in production
+
+## Chatbot RAG Setup
+
+The chatbot now supports a Retrieval Augmented Generation (RAG) flow using:
+
+- Embeddings: `all-MiniLM-L6-v2`
+- Vector DB: `FAISS`
+- LLM: `Groq Chat Completions API`
+
+### 1) Install Python dependencies
+
+```bash
+cd backend
+pip install -r rag/requirements.txt
+```
+
+If you have multiple Python installations, set `RAG_PYTHON_COMMAND` in `.env` to the interpreter where these packages are installed (for example: `py -3` or `"C:/Program Files/Python312/python.exe"`).
+
+### 2) Configure Groq API
+
+```bash
+GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=llama-3.1-8b-instant
+GROQ_BASE_URL=https://api.groq.com/openai/v1
+```
+
+Add these values to `backend/.env`.
+
+### 3) Build FAISS index from TripMate trips
+
+```bash
+cd backend
+npm run rag:build-index
+```
+
+This script reads trip data from MongoDB and creates index files under `backend/rag/index/`.
+
+### 4) Chatbot API endpoint
+
+`POST /api/chatbot/query`
+
+Request body:
+
+```json
+{
+  "message": "Plan a 3 day trip to Ooty",
+  "history": [
+    { "role": "user", "content": "Suggest budget trip options" }
+  ],
+  "userRole": "traveler"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "reply": "...",
+    "retrievedCount": 5,
+    "sources": []
+  }
+}
+```
 
 ## 🤝 Contributing
 

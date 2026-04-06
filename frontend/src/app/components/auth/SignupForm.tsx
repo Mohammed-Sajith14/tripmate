@@ -1,3 +1,4 @@
+import { GoogleLogin, type CredentialResponse } from "@react-oauth/google";
 import {
   Building2,
   Check,
@@ -16,6 +17,9 @@ interface SignupFormProps {
   onSignupComplete: () => void;
 }
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
 export function SignupForm({
   onSwitchToLogin,
   onSignupComplete,
@@ -29,6 +33,7 @@ export function SignupForm({
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [role, setRole] = useState<"traveler" | "organizer">("traveler");
   const [organizationName, setOrganizationName] = useState("");
 
@@ -44,7 +49,7 @@ export function SignupForm({
     const timer = setTimeout(async () => {
       try {
         // Check userId availability with backend API
-        const response = await fetch(`http://localhost:5000/api/auth/check-userid/${userId}`);
+        const response = await fetch(`${API_BASE_URL}/auth/check-userid/${userId}`);
         const data = await response.json();
         
         if (data.status === 'success') {
@@ -70,7 +75,7 @@ export function SignupForm({
 
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/auth/register', {
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -104,6 +109,54 @@ export function SignupForm({
       alert('Network error. Please make sure the backend server is running.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignup = async (credentialResponse: CredentialResponse) => {
+    const idToken = credentialResponse.credential;
+
+    if (!idToken) {
+      alert("Google sign-up failed. Please try again.");
+      return;
+    }
+
+    if (role === "organizer" && !organizationName.trim()) {
+      alert("Organization name is required for organizers.");
+      return;
+    }
+
+    setIsGoogleLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/google`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          idToken,
+          mode: "signup",
+          role,
+          organizationName: role === "organizer" ? organizationName : undefined,
+          userId: userId.trim() || undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.status === "success") {
+        localStorage.setItem("token", data.data.token);
+        localStorage.setItem("user", JSON.stringify(data.data.user));
+
+        onSignupComplete();
+      } else {
+        alert(data.message || "Google sign-up failed. Please try again.");
+      }
+    } catch (error) {
+      console.error("Google signup error:", error);
+      alert("Network error. Please make sure the backend server is running.");
+    } finally {
+      setIsGoogleLoading(false);
     }
   };
 
@@ -346,11 +399,38 @@ export function SignupForm({
         {/* Submit Button */}
         <button
           type="submit"
-          disabled={userIdValidation !== "available"}
+          disabled={userIdValidation !== "available" || isLoading || isGoogleLoading}
           className="w-full py-3 bg-teal-500 hover:bg-teal-600 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none"
         >
-          Create account
+          {isLoading ? "Creating account..." : "Create account"}
         </button>
+
+        <div className="relative py-1">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-slate-200 dark:border-slate-700"></div>
+          </div>
+          <div className="relative flex justify-center">
+            <span className="bg-white dark:bg-slate-900 px-3 text-xs text-slate-500 dark:text-slate-400">
+              or continue with
+            </span>
+          </div>
+        </div>
+
+        {GOOGLE_CLIENT_ID ? (
+          <div className={isGoogleLoading ? "opacity-60 pointer-events-none" : ""}>
+            <GoogleLogin
+              onSuccess={handleGoogleSignup}
+              onError={() => alert("Google sign-up was cancelled or failed.")}
+              text="signup_with"
+              shape="pill"
+              size="large"
+            />
+          </div>
+        ) : (
+          <p className="text-center text-xs text-slate-500 dark:text-slate-400">
+            Google signup is disabled. Set VITE_GOOGLE_CLIENT_ID in frontend environment.
+          </p>
+        )}
       </form>
 
       {/* Switch to Login */}

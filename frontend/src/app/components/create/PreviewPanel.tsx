@@ -120,16 +120,11 @@ export function PreviewPanel({ formData }: PreviewPanelProps) {
               </div>
             )}
 
-            {/* Category & Difficulty */}
+            {/* Category */}
             <div className="flex gap-2 flex-wrap">
               {formData.category && (
                 <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs rounded-full">
                   {formData.category}
-                </span>
-              )}
-              {formData.difficulty && (
-                <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs rounded-full">
-                  {formData.difficulty}
                 </span>
               )}
             </div>

@@ -19,15 +19,29 @@ const tripSchema = new mongoose.Schema(
       required: [true, 'Country is required'],
       trim: true,
     },
+    location: {
+      name: {
+        type: String,
+        required: [true, 'Location is required'],
+        trim: true,
+      },
+      latitude: {
+        type: Number,
+        required: [true, 'Latitude is required'],
+        min: [-90, 'Latitude must be between -90 and 90'],
+        max: [90, 'Latitude must be between -90 and 90'],
+      },
+      longitude: {
+        type: Number,
+        required: [true, 'Longitude is required'],
+        min: [-180, 'Longitude must be between -180 and 180'],
+        max: [180, 'Longitude must be between -180 and 180'],
+      },
+    },
     category: {
       type: String,
       required: [true, 'Category is required'],
       enum: ['Adventure', 'Beach', 'Cultural', 'Mountain', 'Urban', 'Nature', 'Other', 'Hills', 'Wildlife', 'City Break', 'Road Trip', 'Cruise', 'Wellness', 'Food & Culture'],
-    },
-    difficulty: {
-      type: String,
-      enum: ['Easy', 'Moderate', 'Difficult', 'Challenging', 'Extreme'],
-      default: 'Easy',
     },
 
     // Dates
@@ -72,7 +86,6 @@ const tripSchema = new mongoose.Schema(
     // Media
     coverImage: {
       type: String, // URL or base64
-      default: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=600',
     },
     galleryImages: [
       {
@@ -136,5 +149,7 @@ tripSchema.index({ organizer: 1, createdAt: -1 });
 tripSchema.index({ destination: 1 });
 tripSchema.index({ category: 1 });
 tripSchema.index({ isPublished: 1 });
+tripSchema.index({ isPublished: 1, createdAt: -1 });
+tripSchema.index({ 'location.latitude': 1, 'location.longitude': 1 });
 
 export default mongoose.model('Trip', tripSchema);

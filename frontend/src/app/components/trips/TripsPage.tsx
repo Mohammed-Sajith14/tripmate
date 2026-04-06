@@ -6,6 +6,8 @@ import { FiltersPanel } from "./FiltersPanel";
 import { TripCard } from "./TripCard";
 import { SlidersHorizontal, X } from "lucide-react";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+
 interface TripsPageProps {
   isDark: boolean;
   toggleTheme: () => void;
@@ -19,12 +21,11 @@ export interface TripFilters {
   budgetRange: [number, number];
   duration: string;
   dateRange: string;
-  difficulty: string;
   organizerRating: number;
 }
 
 export interface Trip {
-  id: number;
+  id: string | number;
   title: string;
   destination: string;
   country: string;
@@ -38,9 +39,17 @@ export interface Trip {
   startDate: string;
   endDate: string;
   image: string;
-  difficulty: string;
   availableSpots: number;
   totalSpots: number;
+  description?: string;
+  itinerary?: Array<{ day: number; title: string; description: string }>;
+  inclusions?: string[];
+  exclusions?: string[];
+  cancellationPolicy?: string;
+  refundPolicy?: string;
+  minimumGroupSize?: number;
+  requirements?: string;
+  importantNotes?: string;
 }
 
 // Mock trips data
@@ -60,7 +69,6 @@ const mockTrips: Trip[] = [
     startDate: "2026-03-15",
     endDate: "2026-03-20",
     image: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=600",
-    difficulty: "Easy",
     availableSpots: 8,
     totalSpots: 12
   },
@@ -79,7 +87,6 @@ const mockTrips: Trip[] = [
     startDate: "2026-04-10",
     endDate: "2026-04-17",
     image: "https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?w=600",
-    difficulty: "Easy",
     availableSpots: 5,
     totalSpots: 10
   },
@@ -98,7 +105,6 @@ const mockTrips: Trip[] = [
     startDate: "2026-05-01",
     endDate: "2026-05-11",
     image: "https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=600",
-    difficulty: "Challenging",
     availableSpots: 6,
     totalSpots: 8
   },
@@ -117,7 +123,6 @@ const mockTrips: Trip[] = [
     startDate: "2026-03-22",
     endDate: "2026-03-28",
     image: "https://images.unsplash.com/photo-1597212618440-806262de4f6b?w=600",
-    difficulty: "Easy",
     availableSpots: 10,
     totalSpots: 15
   },
@@ -136,7 +141,6 @@ const mockTrips: Trip[] = [
     startDate: "2026-02-15",
     endDate: "2026-02-23",
     image: "https://images.unsplash.com/photo-1483347756197-71ef80e95f73?w=600",
-    difficulty: "Moderate",
     availableSpots: 4,
     totalSpots: 12
   },
@@ -155,7 +159,6 @@ const mockTrips: Trip[] = [
     startDate: "2026-04-05",
     endDate: "2026-04-12",
     image: "https://images.unsplash.com/photo-1537953773345-d172ccf13cf1?w=600",
-    difficulty: "Easy",
     availableSpots: 7,
     totalSpots: 10
   },
@@ -174,7 +177,6 @@ const mockTrips: Trip[] = [
     startDate: "2026-06-20",
     endDate: "2026-06-29",
     image: "https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=600",
-    difficulty: "Moderate",
     availableSpots: 9,
     totalSpots: 12
   },
@@ -193,7 +195,6 @@ const mockTrips: Trip[] = [
     startDate: "2026-03-28",
     endDate: "2026-04-04",
     image: "https://images.unsplash.com/photo-1583417319070-4a69db38a482?w=600",
-    difficulty: "Easy",
     availableSpots: 6,
     totalSpots: 10
   },
@@ -212,7 +213,6 @@ const mockTrips: Trip[] = [
     startDate: "2026-05-15",
     endDate: "2026-05-27",
     image: "https://images.unsplash.com/photo-1587595431973-160d0d94add1?w=600",
-    difficulty: "Challenging",
     availableSpots: 3,
     totalSpots: 8
   },
@@ -231,7 +231,6 @@ const mockTrips: Trip[] = [
     startDate: "2026-05-08",
     endDate: "2026-05-14",
     image: "https://images.unsplash.com/photo-1533105079780-92b9be482077?w=600",
-    difficulty: "Easy",
     availableSpots: 8,
     totalSpots: 12
   },
@@ -250,7 +249,6 @@ const mockTrips: Trip[] = [
     startDate: "2026-07-10",
     endDate: "2026-07-18",
     image: "https://images.unsplash.com/photo-1516426122078-c23e76319801?w=600",
-    difficulty: "Moderate",
     availableSpots: 5,
     totalSpots: 10
   },
@@ -269,7 +267,6 @@ const mockTrips: Trip[] = [
     startDate: "2026-08-01",
     endDate: "2026-08-15",
     image: "https://images.unsplash.com/photo-1507699622108-4be3abd695ad?w=600",
-    difficulty: "Moderate",
     availableSpots: 7,
     totalSpots: 12
   }
@@ -278,7 +275,7 @@ const mockTrips: Trip[] = [
 export function TripsPage({ isDark, toggleTheme, onNavigate, onViewTripDetail }: TripsPageProps) {
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [allTrips, setAllTrips] = useState<Trip[]>(mockTrips);
+  const [allTrips, setAllTrips] = useState<Trip[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState<TripFilters>({
     destination: "",
@@ -286,7 +283,6 @@ export function TripsPage({ isDark, toggleTheme, onNavigate, onViewTripDetail }:
     budgetRange: [0, 10000],
     duration: "",
     dateRange: "",
-    difficulty: "",
     organizerRating: 0
   });
 
@@ -296,17 +292,17 @@ export function TripsPage({ isDark, toggleTheme, onNavigate, onViewTripDetail }:
 
   const fetchTripsFromBackend = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/trips');
+      const response = await fetch(`${API_BASE_URL}/trips?summary=true`);
       if (response.ok) {
         const data = await response.json();
         // Transform backend trips to match frontend Trip interface
-        const backendTrips = data.data.trips.map((trip: any, index: number) => {
+        const backendTrips = data.data.trips.map((trip: any) => {
           const startDate = new Date(trip.startDate);
           const endDate = new Date(trip.endDate);
           const duration = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
           
           return {
-            id: 1000 + index, // Offset IDs to avoid conflicts with mock data
+            id: trip._id,
             title: trip.title,
             destination: trip.destination,
             country: trip.country,
@@ -314,23 +310,30 @@ export function TripsPage({ isDark, toggleTheme, onNavigate, onViewTripDetail }:
             duration: duration,
             budgetMin: trip.priceMin,
             budgetMax: trip.priceMax,
-            organizerId: trip.organizer.userId,
-            organizerName: trip.organizer.fullName,
-            organizerRating: 4.5, // Default rating
+            organizerId: trip.organizer?.userId || String(trip.organizer?._id || trip.organizer || ''),
+            organizerName: trip.organizer?.fullName || trip.organizer?.organizationName || trip.organizer?.userId || 'Organizer',
+            organizerRating: typeof trip.organizer?.rating === 'number' ? trip.organizer.rating : 0,
             startDate: trip.startDate,
             endDate: trip.endDate,
-            image: trip.coverImage,
-            difficulty: trip.difficulty,
+            image: trip.coverImage || '',
             availableSpots: trip.availableSpots,
-            totalSpots: trip.totalSpots
+            totalSpots: trip.totalSpots,
+            description: trip.description,
+            itinerary: Array.isArray(trip.itinerary) ? trip.itinerary : [],
+            inclusions: Array.isArray(trip.inclusions) ? trip.inclusions : [],
+            exclusions: Array.isArray(trip.exclusions) ? trip.exclusions : [],
+            cancellationPolicy: trip.cancellationPolicy,
+            refundPolicy: trip.refundPolicy,
+            minimumGroupSize: trip.minimumGroupSize,
+            requirements: trip.requirements,
+            importantNotes: trip.importantNotes,
           };
         });
-        // Merge backend trips with mock trips
-        setAllTrips([...mockTrips, ...backendTrips]);
+        setAllTrips(backendTrips);
       }
     } catch (error) {
       console.error('Error fetching trips:', error);
-      // Keep mock data if fetch fails
+      setAllTrips([]);
     } finally {
       setIsLoading(false);
     }
@@ -366,11 +369,6 @@ export function TripsPage({ isDark, toggleTheme, onNavigate, onViewTripDetail }:
       }
     }
 
-    // Difficulty filter
-    if (filters.difficulty && trip.difficulty !== filters.difficulty) {
-      return false;
-    }
-
     // Organizer rating filter
     if (filters.organizerRating > 0 && trip.organizerRating < filters.organizerRating) {
       return false;
@@ -403,7 +401,6 @@ export function TripsPage({ isDark, toggleTheme, onNavigate, onViewTripDetail }:
       budgetRange: [0, 10000],
       duration: "",
       dateRange: "",
-      difficulty: "",
       organizerRating: 0
     });
     setCurrentPage(1);
@@ -455,7 +452,7 @@ export function TripsPage({ isDark, toggleTheme, onNavigate, onViewTripDetail }:
                 >
                   <SlidersHorizontal className="size-5" />
                   <span>Filters</span>
-                  {(filters.category.length > 0 || filters.destination || filters.difficulty || filters.organizerRating > 0) && (
+                  {(filters.category.length > 0 || filters.destination || filters.organizerRating > 0) && (
                     <span className="ml-2 px-2 py-0.5 bg-teal-500 text-white text-xs rounded-full">
                       Active
                     </span>
@@ -468,7 +465,7 @@ export function TripsPage({ isDark, toggleTheme, onNavigate, onViewTripDetail }:
                 <p className="text-slate-600 dark:text-slate-400">
                   {filteredTrips.length} {filteredTrips.length === 1 ? 'trip' : 'trips'} found
                 </p>
-                {(filters.category.length > 0 || filters.destination || filters.difficulty || filters.organizerRating > 0) && (
+                {(filters.category.length > 0 || filters.destination || filters.organizerRating > 0) && (
                   <button
                     onClick={handleResetFilters}
                     className="text-sm text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 font-medium"

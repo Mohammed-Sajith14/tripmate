@@ -1,6 +1,7 @@
 import { Send, Paperclip, Info, ArrowLeft } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { MessageBubble } from "./MessageBubble";
+import type { Socket } from "socket.io-client";
 
 interface Message {
   id: string;
@@ -11,16 +12,20 @@ interface Message {
 }
 
 interface ChatWindowProps {
+  socket: Socket | null;
+  isConnected: boolean;
   conversation: {
-    id: string;
-    name: string;
-    userId: string;
-    role: "traveler" | "organizer";
-    messages: Message[];
+    id?: string;
+    _id?: string;
+    name?: string;
+    userId?: string;
+    role?: "traveler" | "organizer";
+    messages?: Message[];
     tripContext?: {
       tripName: string;
       destination: string;
     } | null;
+    otherParticipant?: any;
   } | null;
   onBack: () => void;
   onShowInfo: () => void;
@@ -28,70 +33,247 @@ interface ChatWindowProps {
 }
 
 export function ChatWindow({
+  socket,
+  isConnected,
   conversation,
   onBack,
   onShowInfo,
   onViewTrip,
 }: ChatWindowProps) {
+  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const [messageInput, setMessageInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const processedMessageIdsRef = useRef<Set<string>>(new Set());
 
-  // Initialize messages when conversation changes
+  const formatTimestamp = (dateString: string) =>
+    new Date(dateString).toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+
   useEffect(() => {
-    if (conversation) {
-      setMessages(conversation.messages);
+    if (!socket || !isConnected || (!currentUser?._id && !currentUser?.userId)) {
+      return;
     }
-  }, [conversation]);
+
+    socket.emit("user_connected", currentUser._id || currentUser.userId);
+  }, [socket, isConnected, currentUser?._id, currentUser?.userId]);
+
+  // Load conversation messages when active conversation changes
+  useEffect(() => {
+    const fetchConversationMessages = async () => {
+      if (!conversation) {
+        setMessages([]);
+        return;
+      }
+
+      const conversationId = conversation._id || conversation.id;
+      if (!conversationId) {
+        setMessages([]);
+        return;
+      }
+
+      if (socket && isConnected) {
+        socket.emit("join_conversation", conversationId);
+      }
+
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch(`http://localhost:5000/api/messages/${conversationId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = await response.json();
+        const fetchedMessages = data?.data?.conversation?.messages || [];
+
+        setMessages(
+          fetchedMessages.map((message: any) => ({
+            id: message._id,
+            content: message.content,
+            timestamp: formatTimestamp(message.createdAt || message.timestamp),
+            isSent:
+              message.sender?._id === currentUser._id ||
+              message.sender?.userId === currentUser.userId,
+            isRead: message.isRead,
+          }))
+        );
+      } catch (error) {
+        console.error("Error fetching conversation messages:", error);
+      }
+    };
+
+    fetchConversationMessages();
+  }, [conversation, socket, isConnected]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Simulate typing indicator
+  // Listen for incoming messages
   useEffect(() => {
-    if (messages.length > 0 && !messages[messages.length - 1].isSent) {
-      const typingTimeout = setTimeout(() => {
-        setIsTyping(false);
-      }, 2000);
-      return () => clearTimeout(typingTimeout);
-    }
-  }, [messages]);
+    if (!socket) return;
 
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (messageInput.trim() && conversation) {
-      const newMessage: Message = {
-        id: Date.now().toString(),
-        content: messageInput.trim(),
-        timestamp: new Date().toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "2-digit",
-        }),
-        isSent: true,
-        isRead: false,
+    socket.on("message_received", (message: any) => {
+      const activeConversationId = conversation?._id || conversation?.id;
+      if (!activeConversationId || message.conversationId !== activeConversationId) {
+        return;
+      }
+
+      const incomingMessageId = message?.id || message?._id;
+      if (incomingMessageId && processedMessageIdsRef.current.has(incomingMessageId)) {
+        return;
+      }
+
+      if (incomingMessageId) {
+        processedMessageIdsRef.current.add(incomingMessageId);
+      }
+
+      const incoming = {
+        id: String(message.id || message._id || message.clientMessageId || Date.now()),
+        content: message.content,
+        timestamp: formatTimestamp(message.timestamp),
+        isSent:
+          message.sender?._id === currentUser._id ||
+          message.sender?.userId === currentUser.userId,
+        isRead: message.isRead,
       };
 
-      setMessages([...messages, newMessage]);
-      setMessageInput("");
+      setMessages((prev) => {
+        const isOwnIncoming =
+          message.sender?._id === currentUser._id ||
+          message.sender?.userId === currentUser.userId;
 
-      // Simulate response (demo mode)
-      setIsTyping(true);
-      setTimeout(() => {
-        const response: Message = {
-          id: (Date.now() + 1).toString(),
-          content: "Thank you for your message! I'll get back to you shortly.",
-          timestamp: new Date().toLocaleTimeString("en-US", {
-            hour: "numeric",
-            minute: "2-digit",
-          }),
-          isSent: false,
-        };
-        setMessages((prev) => [...prev, response]);
-        setIsTyping(false);
-      }, 2000);
+        if (isOwnIncoming && message.clientMessageId) {
+          const existingTempIndex = prev.findIndex(
+            (entry) => entry.id === message.clientMessageId
+          );
+
+          if (existingTempIndex !== -1) {
+            const updated = [...prev];
+            updated[existingTempIndex] = {
+              ...updated[existingTempIndex],
+              ...incoming,
+            };
+            return updated;
+          }
+        }
+
+        if (prev.some((entry) => entry.id === incoming.id)) {
+          return prev;
+        }
+
+        return [...prev, incoming];
+      });
+    });
+
+    return () => {
+      socket.off("message_received");
+    };
+  }, [socket, conversation, currentUser._id, currentUser.userId]);
+
+  const sendMessageViaRest = async (conversationId: string, content: string) => {
+    const token = localStorage.getItem("token");
+    const response = await fetch(`http://localhost:5000/api/messages/${conversationId}/send`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ content }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to send message");
+    }
+
+    const data = await response.json();
+    const sentMessage = data?.data?.message;
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: sentMessage?._id || Date.now().toString(),
+        content: sentMessage?.content || content,
+        timestamp: formatTimestamp(sentMessage?.createdAt || new Date().toISOString()),
+        isSent: true,
+        isRead: sentMessage?.isRead || false,
+      },
+    ]);
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!messageInput.trim() || !conversation || isSending) return;
+
+    const conversationId = conversation._id || conversation.id;
+    if (!conversationId) return;
+
+    setIsSending(true);
+
+    try {
+      const trimmedMessage = messageInput.trim();
+
+      if (socket && isConnected) {
+        const clientMessageId = `temp-${Date.now()}`;
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: clientMessageId,
+            content: trimmedMessage,
+            timestamp: formatTimestamp(new Date().toISOString()),
+            isSent: true,
+            isRead: false,
+          },
+        ]);
+
+        setMessageInput("");
+
+        socket.emit("send_message", {
+          conversationId,
+          senderId: currentUser._id || currentUser.id,
+          senderUserId: currentUser.userId,
+          content: trimmedMessage,
+          timestamp: new Date().toISOString(),
+          clientMessageId,
+        }, (ack: any) => {
+          if (ack?.success) {
+            return;
+          }
+
+          setMessages((prev) =>
+            prev.filter((message) => message.id !== clientMessageId)
+          );
+
+          void sendMessageViaRest(conversationId, trimmedMessage).catch((error) => {
+            console.error("Socket ack failed and REST fallback failed:", error);
+            if (ack?.message) {
+              alert(ack.message);
+            } else {
+              alert("Failed to send message. Please try again.");
+            }
+          });
+        });
+
+        return;
+      }
+
+      await sendMessageViaRest(conversationId, trimmedMessage);
+      setMessageInput("");
+    } catch (error) {
+      console.error("Error sending message:", error);
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -130,7 +312,7 @@ export function ChatWindow({
             {/* Profile Picture */}
             <div className="size-11 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center flex-shrink-0">
               <span className="text-base font-semibold text-white">
-                {conversation.userId.charAt(0).toUpperCase()}
+                {(conversation.userId || "U").charAt(0).toUpperCase()}
               </span>
             </div>
 
@@ -138,16 +320,16 @@ export function ChatWindow({
             <div>
               <div className="flex items-center gap-2 mb-0.5">
                 <h3 className="font-semibold text-slate-900 dark:text-white">
-                  {conversation.name}
+                  {conversation.name || conversation.otherParticipant?.fullName || "Unknown"}
                 </h3>
                 <span
                   className={`text-xs px-2 py-0.5 rounded-full ${
-                    conversation.role === "organizer"
+                    (conversation.role || conversation.otherParticipant?.role) === "organizer"
                       ? "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400"
                       : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
                   }`}
                 >
-                  {conversation.role === "organizer" ? "Organizer" : "Traveler"}
+                  {(conversation.role || conversation.otherParticipant?.role) === "organizer" ? "Organizer" : "Traveler"}
                 </span>
               </div>
               {conversation.tripContext && (
@@ -246,10 +428,14 @@ export function ChatWindow({
           {/* Send Button */}
           <button
             type="submit"
-            disabled={!messageInput.trim()}
+            disabled={!messageInput.trim() || isSending}
             className="p-3 bg-teal-500 hover:bg-teal-600 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:cursor-not-allowed text-white disabled:text-slate-400 rounded-xl transition-colors flex-shrink-0"
           >
-            <Send className="size-5" />
+            {isSending ? (
+              <div className="size-5 border-2 border-slate-300 border-t-white rounded-full animate-spin" />
+            ) : (
+              <Send className="size-5" />
+            )}
           </button>
         </form>
       </div>

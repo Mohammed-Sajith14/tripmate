@@ -11,6 +11,7 @@ import { Toaster } from "../ui/sonner";
 import { SearchBar } from "./SearchBar";
 import { UserProfileModal } from "./UserProfileModal";
 import { NotificationsPanel } from "./NotificationsPanel";
+import { ImageWithFallback } from "../figma/ImageWithFallback";
 
 interface HomePageProps {
   isDark: boolean;
@@ -283,7 +284,7 @@ export function HomePage({ isDark, toggleTheme, onNavigate, onLogout }: HomePage
                       className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
                     >
                       <div className="aspect-video relative">
-                        <img
+                        <ImageWithFallback
                           src={plan.image}
                           alt={plan.destination}
                           className="w-full h-full object-cover"

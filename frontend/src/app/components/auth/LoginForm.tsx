@@ -1,3 +1,4 @@
+import { GoogleLogin, type CredentialResponse } from "@react-oauth/google";
 import { Eye, EyeOff, Lock, User } from "lucide-react";
 import { useState } from "react";
 
@@ -6,18 +7,22 @@ interface LoginFormProps {
   onComplete?: () => void;
 }
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
 export function LoginForm({ onSwitchToSignup, onComplete }: LoginFormProps) {
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
     try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -47,6 +52,48 @@ export function LoginForm({ onSwitchToSignup, onComplete }: LoginFormProps) {
       alert('Network error. Please make sure the backend server is running.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async (credentialResponse: CredentialResponse) => {
+    const idToken = credentialResponse.credential;
+
+    if (!idToken) {
+      alert("Google sign-in failed. Please try again.");
+      return;
+    }
+
+    setIsGoogleLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/google`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          idToken,
+          mode: "login",
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.status === "success") {
+        localStorage.setItem("token", data.data.token);
+        localStorage.setItem("user", JSON.stringify(data.data.user));
+
+        if (onComplete) {
+          onComplete();
+        }
+      } else {
+        alert(data.message || "Google login failed. Please try again.");
+      }
+    } catch (error) {
+      console.error("Google login error:", error);
+      alert("Network error. Please make sure the backend server is running.");
+    } finally {
+      setIsGoogleLoading(false);
     }
   };
 
@@ -133,10 +180,38 @@ export function LoginForm({ onSwitchToSignup, onComplete }: LoginFormProps) {
         {/* Submit Button */}
         <button
           type="submit"
+          disabled={isLoading || isGoogleLoading}
           className="w-full py-3 bg-teal-500 hover:bg-teal-600 text-white rounded-xl font-medium transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
         >
-          Log in
+          {isLoading ? "Logging in..." : "Log in"}
         </button>
+
+        <div className="relative py-1">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-slate-200 dark:border-slate-700"></div>
+          </div>
+          <div className="relative flex justify-center">
+            <span className="bg-white dark:bg-slate-900 px-3 text-xs text-slate-500 dark:text-slate-400">
+              or continue with
+            </span>
+          </div>
+        </div>
+
+        {GOOGLE_CLIENT_ID ? (
+          <div className={isGoogleLoading ? "opacity-60 pointer-events-none" : ""}>
+            <GoogleLogin
+              onSuccess={handleGoogleLogin}
+              onError={() => alert("Google sign-in was cancelled or failed.")}
+              text="signin_with"
+              shape="pill"
+              size="large"
+            />
+          </div>
+        ) : (
+          <p className="text-center text-xs text-slate-500 dark:text-slate-400">
+            Google login is disabled. Set VITE_GOOGLE_CLIENT_ID in frontend environment.
+          </p>
+        )}
       </form>
 
       {/* Switch to Signup */}

@@ -1,4 +1,5 @@
 import { Calendar, MapPin, Tag } from "lucide-react";
+import { ImageWithFallback } from "../figma/ImageWithFallback";
 
 interface TripPlanCardProps {
   destination: string;
@@ -21,7 +22,7 @@ export function TripPlanCard({
     <div className="flex-shrink-0 w-72 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden hover:shadow-lg transition-all hover:border-teal-500 dark:hover:border-teal-500 cursor-pointer group">
       {/* Image */}
       <div className="aspect-[3/2] bg-slate-100 dark:bg-slate-800 overflow-hidden relative">
-        <img
+        <ImageWithFallback
           src={image}
           alt={destination}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
