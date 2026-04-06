@@ -342,10 +342,15 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
+// Start server
 const PORT = process.env.PORT || 5000;
 
 const shutdown = () => {
-  stopRagRetriever();
+  try {
+    stopRagRetriever();
+  } catch (error) {
+    console.error('Shutdown cleanup error:', error.message);
+  }
   process.exit(0);
 };
 
@@ -353,22 +358,32 @@ process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
 const bootstrap = async () => {
-  await connectToMongoDB();
-
   try {
-    console.time('[startup] rag-retriever-init');
-    await initRagRetriever();
-    console.timeEnd('[startup] rag-retriever-init');
-  } catch (error) {
-    console.error('[startup] RAG retriever warmup failed:', error.message);
-  }
+    await connectToMongoDB();
 
-  httpServer.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`📍 Environment: ${process.env.NODE_ENV}`);
-    console.log(`🌐 API URL: http://localhost:${PORT}/api`);
-    console.log(`💬 WebSocket URL: ws://localhost:${PORT}`);
-  });
+    // Skip RAG warmup in production (Railway)
+    if (process.env.NODE_ENV !== 'production') {
+      try {
+        console.time('[startup] rag-retriever-init');
+        await initRagRetriever();
+        console.timeEnd('[startup] rag-retriever-init');
+      } catch (error) {
+        console.error('[startup] RAG retriever warmup failed:', error.message);
+      }
+    } else {
+      console.log('⚡ Production mode: skipping RAG warmup');
+    }
+
+    httpServer.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`📍 Environment: ${process.env.NODE_ENV}`);
+      console.log(`🌐 API ready`);
+      console.log(`💬 WebSocket ready`);
+    });
+  } catch (error) {
+    console.error('❌ Server bootstrap failed:', error);
+    process.exit(1);
+  }
 };
 
 bootstrap();
