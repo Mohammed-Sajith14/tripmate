@@ -15,6 +15,8 @@ import { PostCreationPage } from "../social/PostCreationPage";
 import { Eye, Save, Send, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+
 interface CreateTripPageProps {
   isDark: boolean;
   toggleTheme: () => void;
@@ -136,7 +138,7 @@ export function CreateTripPage({
         );
       }
       
-      const response = await fetch('http://localhost:5000/api/trips', {
+      const response = await fetch(`${API_BASE_URL}/trips`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -216,7 +218,7 @@ export function CreateTripPage({
         );
       }
       
-      const response = await fetch('http://localhost:5000/api/trips', {
+      const response = await fetch(`${API_BASE_URL}/trips`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

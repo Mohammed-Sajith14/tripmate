@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+
 interface PostCreationPageProps {
   isDark: boolean;
   toggleTheme: () => void;
@@ -59,7 +61,7 @@ export function PostCreationPage({
     try {
       const token = localStorage.getItem('token');
       
-      const response = await fetch('http://localhost:5000/api/posts', {
+      const response = await fetch(`${API_BASE_URL}/posts`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
