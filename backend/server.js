@@ -12,20 +12,51 @@ dotenv.config();
 const app = express();
 const httpServer = createServer(app);
 
+const normalizeOrigin = (value) => {
+  if (!value || typeof value !== 'string') {
+    return '';
+  }
+
+  return value.trim().replace(/\/+$/, '');
+};
+
+const allowedOrigins = new Set(
+  [
+    normalizeOrigin(process.env.FRONTEND_URL),
+    'http://localhost:5173',
+    'http://localhost:5174',
+  ].filter(Boolean)
+);
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    const normalizedOrigin = normalizeOrigin(origin);
+    if (allowedOrigins.has(normalizedOrigin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  credentials: true,
+};
+
 // Socket.IO initialization
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: Array.from(allowedOrigins),
     credentials: true,
     methods: ['GET', 'POST']
   }
 });
 
 // Middleware
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  credentials: true
-}));
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -49,7 +80,7 @@ app.get('/api/health', (req, res) => {
 });
 
 app.get('/auth/google/callback', (req, res) => {
-  res.redirect(process.env.FRONTEND_URL || 'http://localhost:5173');
+  res.redirect(normalizeOrigin(process.env.FRONTEND_URL) || 'http://localhost:5173');
 });
 
 // Import routes (will be added feature by feature)

@@ -72,7 +72,7 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
   const fetchProfile = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/users/${userId}`, {
+      const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -98,7 +98,7 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
   const checkFollowStatus = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/follow/${userId}/status`, {
+      const response = await fetch(`${API_BASE_URL}/follow/${userId}/status`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -137,8 +137,8 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
     try {
       const token = localStorage.getItem('token');
       const url = isFollowing
-        ? `http://localhost:5000/api/follow/${userId}/unfollow`
-        : `http://localhost:5000/api/follow/${userId}/follow`;
+        ? `${API_BASE_URL}/follow/${userId}/unfollow`
+        : `${API_BASE_URL}/follow/${userId}/follow`;
       
       const response = await fetch(url, {
         method: isFollowing ? 'DELETE' : 'POST',
@@ -153,7 +153,7 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
         toast.success(isFollowing ? 'Unfollowed successfully' : 'Following successfully');
         
         // Fetch updated current user data to refresh following count in localStorage
-        const meResponse = await fetch('http://localhost:5000/api/auth/me', {
+        const meResponse = await fetch(`${API_BASE_URL}/auth/me`, {
           headers: {
             'Authorization': `Bearer ${token}`,
           },

@@ -3,6 +3,8 @@ import { PostCard } from "./PostCard";
 import { Post } from "./types";
 import { toast } from "sonner";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+
 interface SocialFeedProps {
   limit?: number;
 }
@@ -28,7 +30,7 @@ export function SocialFeed({ limit }: SocialFeedProps) {
   const fetchPosts = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/posts/feed', {
+      const response = await fetch(`${API_BASE_URL}/posts/feed`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -91,8 +93,8 @@ export function SocialFeed({ limit }: SocialFeedProps) {
       if (!post) return;
 
       const endpoint = post.isLiked 
-        ? `http://localhost:5000/api/posts/${postId}/unlike`
-        : `http://localhost:5000/api/posts/${postId}/like`;
+        ? `${API_BASE_URL}/posts/${postId}/unlike`
+        : `${API_BASE_URL}/posts/${postId}/like`;
       
       const method = post.isLiked ? 'DELETE' : 'POST';
 
@@ -131,7 +133,7 @@ export function SocialFeed({ limit }: SocialFeedProps) {
       const token = localStorage.getItem('token');
       const userData = JSON.parse(localStorage.getItem('user') || '{}');
 
-      const response = await fetch(`http://localhost:5000/api/posts/${postId}/comments`, {
+      const response = await fetch(`${API_BASE_URL}/posts/${postId}/comments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -179,7 +181,7 @@ export function SocialFeed({ limit }: SocialFeedProps) {
     try {
       const token = localStorage.getItem('token');
       
-      const response = await fetch(`http://localhost:5000/api/posts/${postId}`, {
+      const response = await fetch(`${API_BASE_URL}/posts/${postId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,

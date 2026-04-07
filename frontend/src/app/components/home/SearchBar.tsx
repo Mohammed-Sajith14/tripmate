@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, X, User, Building2, Loader2 } from 'lucide-react';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+
 interface SearchUser {
   _id: string;
   userId: string;
@@ -52,7 +54,7 @@ export function SearchBar({ onUserSelect }: SearchBarProps) {
       try {
         const token = localStorage.getItem('token');
         const response = await fetch(
-          `http://localhost:5000/api/users/search?query=${encodeURIComponent(query)}&limit=10`,
+          `${API_BASE_URL}/users/search?query=${encodeURIComponent(query)}&limit=10`,
           {
             headers: {
               'Authorization': `Bearer ${token}`,
