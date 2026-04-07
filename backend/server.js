@@ -20,6 +20,13 @@ const normalizeOrigin = (value) => {
   return value.trim().replace(/\/+$/, '');
 };
 
+const isAllowedVercelOrigin = (origin) => typeof origin === 'string' && origin.endsWith('.vercel.app');
+
+const isOriginAllowed = (origin) => {
+  const normalizedOrigin = normalizeOrigin(origin);
+  return allowedOrigins.has(normalizedOrigin) || isAllowedVercelOrigin(normalizedOrigin);
+};
+
 const allowedOrigins = new Set(
   [
     normalizeOrigin(process.env.FRONTEND_URL),
@@ -35,8 +42,7 @@ const corsOptions = {
       return;
     }
 
-    const normalizedOrigin = normalizeOrigin(origin);
-    if (allowedOrigins.has(normalizedOrigin)) {
+    if (isOriginAllowed(origin)) {
       callback(null, true);
       return;
     }
@@ -49,7 +55,14 @@ const corsOptions = {
 // Socket.IO initialization
 const io = new Server(httpServer, {
   cors: {
-    origin: Array.from(allowedOrigins),
+    origin: (origin, callback) => {
+      if (!origin || isOriginAllowed(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`Socket.IO CORS blocked for origin: ${origin}`));
+    },
     credentials: true,
     methods: ['GET', 'POST']
   }

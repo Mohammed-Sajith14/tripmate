@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
+import { SOCKET_BASE_URL } from "./auth";
 
 interface UseSocketOptions {
   url?: string;
@@ -8,7 +9,7 @@ interface UseSocketOptions {
 
 export const useSocket = (options: UseSocketOptions = {}) => {
   const {
-    url = import.meta.env.VITE_API_URL || "http://localhost:5000",
+    url = SOCKET_BASE_URL,
     autoConnect = true,
   } = options;
 

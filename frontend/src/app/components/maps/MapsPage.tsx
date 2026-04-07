@@ -11,7 +11,7 @@ import { TripPreviewPopup, TripData } from "./TripPreviewPopup";
 import { Trip } from "../trips/TripsPage";
 import { SlidersHorizontal } from "lucide-react";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+import { API_BASE_URL } from "../../../utils/auth";
 const FALLBACK_TRIP_IMAGE = "https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=600";
 
 /* ---------------- FIX DEFAULT MARKER ICON ---------------- */

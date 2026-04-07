@@ -11,8 +11,27 @@ import {
   Send,
 } from "lucide-react";
 import { toast } from "sonner";
+import { clearAuthSession, getValidAuthToken } from "../../../utils/auth";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+const resolveApiBaseUrl = () => {
+  const configuredBaseUrl = (import.meta as any)?.env?.VITE_API_BASE_URL;
+  if (typeof configuredBaseUrl === "string" && configuredBaseUrl.trim() !== "") {
+    return configuredBaseUrl.trim().replace(/\/+$/, "");
+  }
+
+  if (typeof window !== "undefined") {
+    const { hostname, origin } = window.location;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return "http://localhost:5000/api";
+    }
+
+    return `${origin.replace(/\/+$/, "")}/api`;
+  }
+
+  return "http://localhost:5000/api";
+};
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 interface PostCreationPageProps {
   isDark: boolean;
@@ -59,7 +78,12 @@ export function PostCreationPage({
 
     setIsPosting(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = getValidAuthToken();
+      if (!token) {
+        toast.error('Your session expired. Please login again');
+        onNavigate('auth');
+        return;
+      }
       
       const response = await fetch(`${API_BASE_URL}/posts`, {
         method: 'POST',
@@ -90,6 +114,13 @@ export function PostCreationPage({
         onNavigate("home");
       } else {
         const error = await response.json();
+        if (response.status === 401) {
+          clearAuthSession();
+          toast.error('Your session expired. Please login again');
+          onNavigate('auth');
+          return;
+        }
+
         toast.error(error.message || 'Failed to create post');
       }
     } catch (error) {

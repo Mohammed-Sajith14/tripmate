@@ -100,7 +100,7 @@ interface TripEditForm {
   description: string;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+import { API_BASE_URL } from "../../../utils/auth";
 
 const getTimeAgo = (dateString: string) => {
   const date = new Date(dateString);

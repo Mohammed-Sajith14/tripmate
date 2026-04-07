@@ -1,6 +1,69 @@
 // Authentication utility functions
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+const resolveApiBaseUrl = () => {
+  const configuredBaseUrl = (import.meta as any)?.env?.VITE_API_BASE_URL;
+  if (typeof configuredBaseUrl === 'string' && configuredBaseUrl.trim() !== '') {
+    return configuredBaseUrl.trim().replace(/\/+$/, '');
+  }
+
+  if (typeof window !== 'undefined') {
+    const { hostname, origin } = window.location;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:5000/api';
+    }
+
+    return `${origin.replace(/\/+$/, '')}/api`;
+  }
+
+  return 'http://localhost:5000/api';
+};
+
+export const API_BASE_URL = resolveApiBaseUrl();
+export const SOCKET_BASE_URL = API_BASE_URL.replace(/\/api$/, '');
+
+const decodeBase64Url = (value: string) => {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+  return atob(padded);
+};
+
+export const clearAuthSession = () => {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+};
+
+export const isTokenExpired = (token: string | null) => {
+  if (!token) {
+    return true;
+  }
+
+  const parts = token.split('.');
+  if (parts.length !== 3) {
+    return true;
+  }
+
+  try {
+    const payload = JSON.parse(decodeBase64Url(parts[1]));
+    if (typeof payload.exp !== 'number') {
+      return false;
+    }
+
+    return payload.exp * 1000 <= Date.now();
+  } catch (error) {
+    console.error('Error decoding auth token:', error);
+    return true;
+  }
+};
+
+export const getValidAuthToken = () => {
+  const token = getAuthToken();
+  if (isTokenExpired(token)) {
+    clearAuthSession();
+    return null;
+  }
+
+  return token;
+};
 
 // Get stored user data
 export const getStoredUser = () => {
@@ -34,8 +97,7 @@ export const getAuthHeaders = () => {
 
 // Logout user
 export const logout = () => {
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
+  clearAuthSession();
   window.location.href = '/'; // Redirect to landing page
 };
 

@@ -2,6 +2,7 @@ import { Send, Paperclip, Info, ArrowLeft } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { MessageBubble } from "./MessageBubble";
 import type { Socket } from "socket.io-client";
+import { API_BASE_URL } from "../../../utils/auth";
 
 interface Message {
   id: string;
@@ -82,7 +83,7 @@ export function ChatWindow({
 
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:5000/api/messages/${conversationId}`, {
+        const response = await fetch(`${API_BASE_URL}/messages/${conversationId}`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -183,7 +184,7 @@ export function ChatWindow({
 
   const sendMessageViaRest = async (conversationId: string, content: string) => {
     const token = localStorage.getItem("token");
-    const response = await fetch(`http://localhost:5000/api/messages/${conversationId}/send`, {
+    const response = await fetch(`${API_BASE_URL}/messages/${conversationId}/send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

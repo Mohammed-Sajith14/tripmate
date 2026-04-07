@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, MapPin, Calendar, Users, Building2, Loader2, UserPlus, UserMinus, Star } from 'lucide-react';
 import { toast } from 'sonner';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+import { API_BASE_URL } from "../../../utils/auth";
 
 interface UserProfileModalProps {
   userId: string;

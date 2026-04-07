@@ -6,6 +6,7 @@ import { ConversationList } from "./ConversationList";
 import { ChatWindow } from "./ChatWindow";
 import { ContextPanel } from "./ContextPanel";
 import { useSocket } from "../../../utils/useSocket";
+import { API_BASE_URL } from "../../../utils/auth";
 
 interface MessagesPageProps {
   isDark: boolean;
@@ -137,7 +138,7 @@ export function MessagesPage({
     try {
       isFetchingConversationsRef.current = true;
       const token = localStorage.getItem("token");
-      const response = await fetch("http://localhost:5000/api/messages", {
+      const response = await fetch(`${API_BASE_URL}/messages`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -190,7 +191,7 @@ export function MessagesPage({
   ) => {
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(`http://localhost:5000/api/messages/${conversationId}`, {
+      const response = await fetch(`${API_BASE_URL}/messages/${conversationId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -239,7 +240,7 @@ export function MessagesPage({
   const ensureTripInquiryConversation = async (tripId: string) => {
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch("http://localhost:5000/api/messages/inquiry/start", {
+      const response = await fetch(`${API_BASE_URL}/messages/inquiry/start`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -265,7 +266,7 @@ export function MessagesPage({
   const ensureOrganizerConversation = async (organizerId: string) => {
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch("http://localhost:5000/api/messages/start", {
+      const response = await fetch(`${API_BASE_URL}/messages/start`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -323,7 +324,7 @@ export function MessagesPage({
     const fetchConversations = async () => {
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:5000/api/messages", {
+        const response = await fetch(`${API_BASE_URL}/messages`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -547,7 +548,7 @@ export function MessagesPage({
     try {
       const token = localStorage.getItem("token");
       const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
-      const response = await fetch("http://localhost:5000/api/messages/start", {
+      const response = await fetch(`${API_BASE_URL}/messages/start`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

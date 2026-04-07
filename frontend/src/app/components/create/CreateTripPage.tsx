@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { LeftNav } from "../home/LeftNav";
 import { TopBar } from "../home/TopBar";
 import { BottomNav } from "../home/BottomNav";
+import { clearAuthSession, getValidAuthToken } from "../../../utils/auth";
 import { BasicInfoSection } from "./BasicInfoSection";
 import { PricingSection } from "./PricingSection";
 import { MediaSection } from "./MediaSection";
@@ -15,7 +16,25 @@ import { PostCreationPage } from "../social/PostCreationPage";
 import { Eye, Save, Send, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+const resolveApiBaseUrl = () => {
+  const configuredBaseUrl = (import.meta as any)?.env?.VITE_API_BASE_URL;
+  if (typeof configuredBaseUrl === "string" && configuredBaseUrl.trim() !== "") {
+    return configuredBaseUrl.trim().replace(/\/+$/, "");
+  }
+
+  if (typeof window !== "undefined") {
+    const { hostname, origin } = window.location;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return "http://localhost:5000/api";
+    }
+
+    return `${origin.replace(/\/+$/, "")}/api`;
+  }
+
+  return "http://localhost:5000/api";
+};
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 interface CreateTripPageProps {
   isDark: boolean;
@@ -109,7 +128,12 @@ export function CreateTripPage({
   const onSubmitPublish = async (data: TripFormData) => {
     setIsSaving(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = getValidAuthToken();
+      if (!token) {
+        toast.error('Your session expired. Please login again');
+        onNavigate('auth');
+        return;
+      }
       
       // Convert File objects to base64 strings
       let coverImageBase64 = data.coverImage;
@@ -175,6 +199,13 @@ export function CreateTripPage({
         onNavigate("trips");
       } else {
         const error = await response.json();
+        if (response.status === 401) {
+          clearAuthSession();
+          toast.error('Your session expired. Please login again');
+          onNavigate('auth');
+          return;
+        }
+
         console.error('Backend error:', error);
         toast.error(error.message || 'Failed to publish trip');
       }
@@ -189,7 +220,12 @@ export function CreateTripPage({
   const onSaveDraft = async () => {
     setIsSaving(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = getValidAuthToken();
+      if (!token) {
+        toast.error('Your session expired. Please login again');
+        onNavigate('auth');
+        return;
+      }
       
       // Convert File objects to base64 strings
       let coverImageBase64 = formData.coverImage;
@@ -254,6 +290,13 @@ export function CreateTripPage({
         toast.success("Draft saved successfully!");
       } else {
         const error = await response.json();
+        if (response.status === 401) {
+          clearAuthSession();
+          toast.error('Your session expired. Please login again');
+          onNavigate('auth');
+          return;
+        }
+
         toast.error(error.message || 'Failed to save draft');
       }
     } catch (error) {

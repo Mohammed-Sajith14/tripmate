@@ -2,7 +2,7 @@ import { Search, MessageSquarePlus } from "lucide-react";
 import { useState, useEffect } from "react";
 import { ConversationItem } from "./ConversationItem";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+import { API_BASE_URL } from "../../../utils/auth";
 
 interface Conversation {
   id?: string;

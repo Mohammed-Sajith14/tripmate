@@ -7,7 +7,7 @@ interface LoginFormProps {
   onComplete?: () => void;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+import { API_BASE_URL } from "../../../utils/auth";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 export function LoginForm({ onSwitchToSignup, onComplete }: LoginFormProps) {

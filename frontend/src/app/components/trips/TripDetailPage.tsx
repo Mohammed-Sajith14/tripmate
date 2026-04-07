@@ -22,6 +22,27 @@ import {
 import { Trip } from "./TripsPage";
 import { ImageWithFallback } from "../figma/ImageWithFallback";
 import { toast } from "sonner";
+import { clearAuthSession, getValidAuthToken } from "../../../utils/auth";
+
+const resolveApiBaseUrl = () => {
+  const configuredBaseUrl = (import.meta as any)?.env?.VITE_API_BASE_URL;
+  if (typeof configuredBaseUrl === "string" && configuredBaseUrl.trim() !== "") {
+    return configuredBaseUrl.trim().replace(/\/+$/, "");
+  }
+
+  if (typeof window !== "undefined") {
+    const { hostname, origin } = window.location;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return "http://localhost:5000/api";
+    }
+
+    return `${origin.replace(/\/+$/, "")}/api`;
+  }
+
+  return "http://localhost:5000/api";
+};
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 interface TripDetailPageProps {
   trip: Trip;
@@ -46,8 +67,6 @@ interface BookingFormState {
   email: string;
   idProofImage: string;
 }
-
-const API_BASE_URL = (import.meta as any)?.env?.VITE_API_BASE_URL || "http://localhost:5000/api";
 
 // Fallback mock data for demo/mock trips only
 const mockItinerary: Record<number, DayItinerary[]> = {
@@ -302,9 +321,9 @@ export function TripDetailPage({ trip: initialTrip, isDark, toggleTheme, onNavig
 
     setIsStartingInquiry(true);
     try {
-      const token = localStorage.getItem("token");
+      const token = getValidAuthToken();
       if (!token) {
-        toast.error("Please login to message an organizer");
+        toast.error("Your session expired. Please login again");
         onNavigate("auth");
         return;
       }
@@ -329,6 +348,7 @@ export function TripDetailPage({ trip: initialTrip, isDark, toggleTheme, onNavig
         const errorMessage = data?.message || "Unable to send your message right now";
 
         if (response.status === 401) {
+          clearAuthSession();
           toast.error("Session expired. Please login again");
           onNavigate("auth");
           return;
@@ -424,7 +444,13 @@ export function TripDetailPage({ trip: initialTrip, isDark, toggleTheme, onNavig
 
     setIsCancellingBooking(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = getValidAuthToken();
+      if (!token) {
+        toast.error('Your session expired. Please login again');
+        onNavigate('auth');
+        return;
+      }
+
       const response = await fetch(`${API_BASE_URL}/trips/${trip.id}/book`, {
         method: 'DELETE',
         headers: {
@@ -434,6 +460,13 @@ export function TripDetailPage({ trip: initialTrip, isDark, toggleTheme, onNavig
 
       const data = await response.json().catch(() => null);
       if (!response.ok || !data?.success) {
+        if (response.status === 401) {
+          clearAuthSession();
+          toast.error('Your session expired. Please login again');
+          onNavigate('auth');
+          return;
+        }
+
         toast.error(data?.message || 'Unable to cancel this booking right now');
         return;
       }
@@ -482,7 +515,13 @@ export function TripDetailPage({ trip: initialTrip, isDark, toggleTheme, onNavig
     setIsBooking(true);
     setIsSubmittingBooking(true);
     try {
-      const token = localStorage.getItem("token");
+      const token = getValidAuthToken();
+      if (!token) {
+        toast.error("Your session expired. Please login again");
+        onNavigate("auth");
+        return;
+      }
+
       const response = await fetch(`${API_BASE_URL}/trips/${trip.id}/book`, {
         method: "POST",
         headers: {
@@ -502,6 +541,13 @@ export function TripDetailPage({ trip: initialTrip, isDark, toggleTheme, onNavig
       const data = await response.json();
 
       if (!response.ok || !data.success) {
+        if (response.status === 401) {
+          clearAuthSession();
+          toast.error("Your session expired. Please login again");
+          onNavigate("auth");
+          return;
+        }
+
         toast.error(data?.message || "Unable to book this trip right now");
         return;
       }
