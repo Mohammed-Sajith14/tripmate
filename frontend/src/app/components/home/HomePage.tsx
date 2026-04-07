@@ -47,6 +47,16 @@ export function HomePage({ isDark, toggleTheme, onNavigate, onLogout }: HomePage
     };
   }, [loadUserData]);
 
+  React.useEffect(() => {
+    const pendingProfileUserId = localStorage.getItem('pendingProfileUserId');
+    if (!pendingProfileUserId) {
+      return;
+    }
+
+    setSelectedUserId(pendingProfileUserId);
+    localStorage.removeItem('pendingProfileUserId');
+  }, []);
+
   // Get current time for greeting
   const getGreeting = () => {
     const hour = new Date().getHours();

@@ -31,6 +31,37 @@ const bookingSchema = new mongoose.Schema(
       min: [0, 'Price cannot be negative'],
       required: true,
     },
+    fullName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    age: {
+      type: Number,
+      required: true,
+      min: [1, 'Age must be at least 1'],
+    },
+    gender: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    phoneNumber: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    email: {
+      type: String,
+      required: true,
+      trim: true,
+      lowercase: true,
+    },
+    idProofImage: {
+      type: String,
+      required: true,
+      trim: true,
+    },
   },
   { timestamps: true }
 );

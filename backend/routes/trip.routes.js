@@ -7,6 +7,7 @@ import {
   getOrganizerTrips,
   getTripById,
   bookTrip,
+  cancelTripBooking,
   getMyBookings,
   updateTrip,
   deleteTrip,
@@ -24,6 +25,7 @@ router.post('/', protect, createTrip);
 router.get('/organizer/my-trips', protect, getOrganizerTrips);
 router.get('/bookings/me', protect, getMyBookings);
 router.post('/:tripId/book', protect, bookTrip);
+router.delete('/:tripId/book', protect, cancelTripBooking);
 router.patch('/:tripId', protect, updateTrip);
 router.delete('/:tripId', protect, deleteTrip);
 router.patch('/:tripId/publish', protect, publishTrip);

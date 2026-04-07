@@ -13,6 +13,7 @@ import {
   X as XIcon,
   ChevronDown,
   ChevronUp,
+  Upload,
   Star,
   Shield,
   Info,
@@ -35,6 +36,15 @@ interface DayItinerary {
   day: number;
   title: string;
   description: string;
+}
+
+interface BookingFormState {
+  fullName: string;
+  age: string;
+  gender: string;
+  phoneNumber: string;
+  email: string;
+  idProofImage: string;
 }
 
 const API_BASE_URL = (import.meta as any)?.env?.VITE_API_BASE_URL || "http://localhost:5000/api";
@@ -88,11 +98,23 @@ export function TripDetailPage({ trip: initialTrip, isDark, toggleTheme, onNavig
   const [expandedDay, setExpandedDay] = useState<number | null>(1);
   const [isStartingInquiry, setIsStartingInquiry] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
+  const [isCancellingBooking, setIsCancellingBooking] = useState(false);
+  const [isBookingPopupOpen, setIsBookingPopupOpen] = useState(false);
+  const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
   const [hasBooked, setHasBooked] = useState(false);
   const [fullTrip, setFullTrip] = useState<Trip | null>(null);
   const trip = fullTrip || initialTrip;
   const [isLoadingTripDetails, setIsLoadingTripDetails] = useState(false);
   const [availableSpots, setAvailableSpots] = useState(initialTrip.availableSpots);
+  const buildBookingForm = (): BookingFormState => ({
+    fullName: typeof currentUser?.fullName === 'string' ? currentUser.fullName : '',
+    age: '',
+    gender: '',
+    phoneNumber: '',
+    email: typeof currentUser?.email === 'string' ? currentUser.email : '',
+    idProofImage: '',
+  });
+  const [bookingForm, setBookingForm] = useState<BookingFormState>(() => buildBookingForm());
   
   // Check if trip ID is a valid MongoDB ObjectId (24-char hex string)
   const isValidObjectId = /^[0-9a-f]{24}$/i.test(String(trip.id));
@@ -101,6 +123,32 @@ export function TripDetailPage({ trip: initialTrip, isDark, toggleTheme, onNavig
   useEffect(() => {
     setAvailableSpots(Number(trip.availableSpots) || 0);
   }, [trip.availableSpots]);
+
+  useEffect(() => {
+    if (!trip?.id) {
+      return;
+    }
+
+    try {
+      const recentTrip = {
+        tripId: String(trip.id),
+        title: trip.title,
+        destination: trip.destination,
+        country: trip.country,
+        category: trip.category,
+        duration: trip.duration,
+        budgetMin: trip.budgetMin,
+        budgetMax: trip.budgetMax,
+        organizerId: trip.organizerId,
+        organizerName: trip.organizerName,
+        viewedAt: Date.now(),
+      };
+
+      localStorage.setItem('recentViewedTrip', JSON.stringify(recentTrip));
+    } catch (error) {
+      console.error('Error storing recent trip:', error);
+    }
+  }, [trip.id, trip.title, trip.destination, trip.country, trip.category, trip.organizerId, trip.organizerName]);
 
   useEffect(() => {
     if (!isValidObjectId) {
@@ -188,6 +236,46 @@ export function TripDetailPage({ trip: initialTrip, isDark, toggleTheme, onNavig
     fetchTripDetails();
   }, [initialTrip.id]);
 
+  useEffect(() => {
+    if (!isTraveler || !isValidObjectId) {
+      setHasBooked(false);
+      return;
+    }
+
+    const checkBookingStatus = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) {
+          return;
+        }
+
+        const response = await fetch(`${API_BASE_URL}/trips/bookings/me`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = await response.json();
+        const bookings = Array.isArray(data?.data?.bookings) ? data.data.bookings : [];
+        const tripId = String(trip.id);
+        const hasActiveBooking = bookings.some((booking: any) => {
+          const bookingTripId = String(booking?.trip?._id || booking?.trip?.id || "");
+          return bookingTripId === tripId;
+        });
+
+        setHasBooked(hasActiveBooking);
+      } catch (error) {
+        console.error("Error checking booking status:", error);
+      }
+    };
+
+    checkBookingStatus();
+  }, [isTraveler, isValidObjectId, trip.id]);
+
   // Use real trip data (itinerary, inclusions, exclusions) if available
   // Fall back to mock data only for demo/mock trips
   const itinerary = (trip as any)?.itinerary && Array.isArray((trip as any).itinerary) && (trip as any).itinerary.length > 0 
@@ -270,7 +358,7 @@ export function TripDetailPage({ trip: initialTrip, isDark, toggleTheme, onNavig
     }
   };
 
-  const handleBookTrip = async () => {
+  const openBookingPopup = () => {
     if (isMockTrip) {
       alert("This is a demo trip. Create a real trip as an organizer or book one of the published trips.");
       return;
@@ -280,7 +368,119 @@ export function TripDetailPage({ trip: initialTrip, isDark, toggleTheme, onNavig
       return;
     }
 
+    setBookingForm(buildBookingForm());
+    setIsBookingPopupOpen(true);
+  };
+
+  const handleIdProofFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      handleBookingFieldChange('idProofImage', '');
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload a valid image file for ID proof');
+      event.target.value = '';
+      handleBookingFieldChange('idProofImage', '');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      handleBookingFieldChange('idProofImage', result);
+    };
+    reader.onerror = () => {
+      toast.error('Unable to read the selected file');
+      handleBookingFieldChange('idProofImage', '');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const clearIdProofImage = () => {
+    setBookingForm((prev) => ({
+      ...prev,
+      idProofImage: '',
+    }));
+  };
+
+  const handleViewOrganizerProfile = () => {
+    const organizerId = String(trip.organizerId || '').trim();
+    if (!organizerId) {
+      toast.error('Organizer profile is not available right now');
+      return;
+    }
+
+    localStorage.setItem('pendingProfileUserId', organizerId);
+    onNavigate('home');
+  };
+
+  const handleCancelTripBooking = async () => {
+    const shouldCancel = window.confirm('Are you sure you want to cancel this trip booking?');
+    if (!shouldCancel) {
+      return;
+    }
+
+    setIsCancellingBooking(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/trips/${trip.id}/book`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success) {
+        toast.error(data?.message || 'Unable to cancel this booking right now');
+        return;
+      }
+
+      setHasBooked(false);
+      setAvailableSpots(data?.data?.trip?.availableSpots ?? Math.min(trip.totalSpots, availableSpots + 1));
+      toast.success('Trip booking cancelled');
+    } catch (error) {
+      console.error('Cancel booking error:', error);
+      toast.error('Unable to cancel booking. Please try again.');
+    } finally {
+      setIsCancellingBooking(false);
+    }
+  };
+
+  const handleBookingFieldChange = (field: keyof BookingFormState, value: string) => {
+    setBookingForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleBookTrip = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const fullName = bookingForm.fullName.trim();
+    const age = Number(bookingForm.age);
+    const gender = bookingForm.gender.trim();
+    const phoneNumber = bookingForm.phoneNumber.trim();
+    const email = bookingForm.email.trim();
+    const idProofImage = bookingForm.idProofImage.trim();
+
+    if (
+      !fullName ||
+      !Number.isInteger(age) ||
+      age < 1 ||
+      !gender ||
+      !phoneNumber ||
+      !email ||
+      !idProofImage
+    ) {
+      toast.error("Please fill in all traveller details");
+      return;
+    }
+
     setIsBooking(true);
+    setIsSubmittingBooking(true);
     try {
       const token = localStorage.getItem("token");
       const response = await fetch(`${API_BASE_URL}/trips/${trip.id}/book`, {
@@ -289,23 +489,34 @@ export function TripDetailPage({ trip: initialTrip, isDark, toggleTheme, onNavig
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({
+          fullName,
+          age,
+          gender,
+          phoneNumber,
+          email,
+          idProofImage,
+        }),
       });
 
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        alert(data?.message || "Unable to book this trip right now");
+        toast.error(data?.message || "Unable to book this trip right now");
         return;
       }
 
       setHasBooked(true);
       setAvailableSpots(data?.data?.trip?.availableSpots ?? Math.max(0, availableSpots - 1));
-      alert("Trip booked successfully!");
+      setIsBookingPopupOpen(false);
+      setBookingForm(buildBookingForm());
+      toast.success("Trip booked successfully!");
     } catch (error) {
       console.error("Booking error:", error);
-      alert("Unable to complete booking. Please try again.");
+      toast.error("Unable to complete booking. Please try again.");
     } finally {
       setIsBooking(false);
+      setIsSubmittingBooking(false);
     }
   };
 
@@ -444,7 +655,10 @@ export function TripDetailPage({ trip: initialTrip, isDark, toggleTheme, onNavig
                       Organizer profile details will appear here when available.
                     </p>
                     <div className="flex gap-2">
-                      <button className="text-sm text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 font-medium">
+                      <button
+                        onClick={handleViewOrganizerProfile}
+                        className="text-sm text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 font-medium"
+                      >
                         View Organizer Profile →
                       </button>
                     </div>
@@ -668,14 +882,16 @@ export function TripDetailPage({ trip: initialTrip, isDark, toggleTheme, onNavig
                   </div>
 
                   <button
-                    onClick={handleBookTrip}
-                    disabled={isMockTrip || !isTraveler || availableSpots <= 0 || hasBooked || isBooking}
+                    onClick={hasBooked ? handleCancelTripBooking : openBookingPopup}
+                    disabled={isMockTrip || !isTraveler || isBooking || isCancellingBooking || (!hasBooked && availableSpots <= 0)}
                     className="w-full py-3 px-4 bg-teal-500 hover:bg-teal-600 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-colors mb-3"
                   >
                     {isMockTrip
                       ? "Demo Trip"
                       : hasBooked
-                      ? "Booked"
+                      ? isCancellingBooking
+                        ? "Cancelling..."
+                        : "Cancel Trip"
                       : !isTraveler
                       ? "Only Travelers Can Book"
                       : availableSpots <= 0
@@ -704,14 +920,16 @@ export function TripDetailPage({ trip: initialTrip, isDark, toggleTheme, onNavig
               </p>
             </div>
             <button
-              onClick={handleBookTrip}
-              disabled={isMockTrip || !isTraveler || availableSpots <= 0 || hasBooked || isBooking}
+              onClick={hasBooked ? handleCancelTripBooking : openBookingPopup}
+              disabled={isMockTrip || !isTraveler || isBooking || isCancellingBooking || (!hasBooked && availableSpots <= 0)}
               className="flex-1 py-3 px-6 bg-teal-500 hover:bg-teal-600 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-colors"
             >
               {isMockTrip
                 ? "Demo Trip"
                 : hasBooked
-                ? "Booked"
+                ? isCancellingBooking
+                  ? "Cancelling..."
+                  : "Cancel Trip"
                 : !isTraveler
                 ? "Only Travelers Can Book"
                 : availableSpots <= 0
@@ -723,6 +941,162 @@ export function TripDetailPage({ trip: initialTrip, isDark, toggleTheme, onNavig
           </div>
         </div>
       </div>
+
+      {isBookingPopupOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setIsBookingPopupOpen(false)}>
+          <div
+            className="w-full max-w-2xl rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 p-6 border-b border-slate-200 dark:border-slate-800">
+              <div>
+                <p className="text-sm text-teal-600 dark:text-teal-400 font-medium">Traveller Booking Details</p>
+                <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Complete your booking</h2>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">These details will be shared with the organizer for trip confirmation.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBookingPopupOpen(false)}
+                className="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                aria-label="Close booking popup"
+              >
+                <XIcon className="size-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleBookTrip} className="p-6 space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Full Name</span>
+                  <input
+                    type="text"
+                    required
+                    value={bookingForm.fullName}
+                    onChange={(event) => handleBookingFieldChange('fullName', event.target.value)}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-4 py-3 text-slate-900 dark:text-white outline-none focus:border-teal-500"
+                    placeholder="Enter your full name"
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Age</span>
+                  <input
+                    type="number"
+                    min={1}
+                    required
+                    value={bookingForm.age}
+                    onChange={(event) => handleBookingFieldChange('age', event.target.value)}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-4 py-3 text-slate-900 dark:text-white outline-none focus:border-teal-500"
+                    placeholder="Your age"
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Gender</span>
+                  <select
+                    required
+                    value={bookingForm.gender}
+                    onChange={(event) => handleBookingFieldChange('gender', event.target.value)}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-4 py-3 text-slate-900 dark:text-white outline-none focus:border-teal-500"
+                  >
+                    <option value="">Select gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Non-binary">Non-binary</option>
+                    <option value="Prefer not to say">Prefer not to say</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </label>
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Phone Number</span>
+                  <input
+                    type="tel"
+                    required
+                    value={bookingForm.phoneNumber}
+                    onChange={(event) => handleBookingFieldChange('phoneNumber', event.target.value)}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-4 py-3 text-slate-900 dark:text-white outline-none focus:border-teal-500"
+                    placeholder="Phone number"
+                  />
+                </label>
+                <label className="space-y-2 sm:col-span-2">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Email Address</span>
+                  <input
+                    type="email"
+                    required
+                    value={bookingForm.email}
+                    onChange={(event) => handleBookingFieldChange('email', event.target.value)}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-4 py-3 text-slate-900 dark:text-white outline-none focus:border-teal-500"
+                    placeholder="Email address"
+                  />
+                </label>
+                <div className="sm:col-span-2 space-y-2">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">ID Proof Image</span>
+                  <label className="flex flex-col items-center justify-center w-full min-h-40 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl cursor-pointer hover:border-teal-500 dark:hover:border-teal-500 transition-colors bg-slate-50 dark:bg-slate-950/50 overflow-hidden">
+                    {bookingForm.idProofImage ? (
+                      <div className="w-full p-4 space-y-3">
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-sm font-medium text-slate-900 dark:text-white">Image uploaded</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Click to replace your ID proof image</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              clearIdProofImage();
+                            }}
+                            className="px-3 py-2 rounded-lg text-xs bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        <img
+                          src={bookingForm.idProofImage}
+                          alt="ID proof preview"
+                          className="w-full h-40 object-cover rounded-lg border border-slate-200 dark:border-slate-700"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-6 px-4 text-center">
+                        <Upload className="size-10 text-slate-400 dark:text-slate-600 mb-3" />
+                        <p className="text-sm text-slate-600 dark:text-slate-400 font-medium mb-1">
+                          Click to upload ID proof image
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-500">
+                          PNG, JPG up to 10MB
+                        </p>
+                      </div>
+                    )}
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      required
+                      onChange={handleIdProofFileChange}
+                    />
+                  </label>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Upload any valid ID proof image (passport, national ID, driving license, etc.).</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsBookingPopupOpen(false)}
+                  className="px-5 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingBooking}
+                  className="px-5 py-3 rounded-xl bg-teal-500 hover:bg-teal-600 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white font-medium transition-colors"
+                >
+                  {isSubmittingBooking ? 'Booking...' : 'Confirm Booking'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Bottom Navigation (Mobile) */}
       <BottomNav activePage="trips" onNavigate={onNavigate} />

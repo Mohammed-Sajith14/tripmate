@@ -277,6 +277,16 @@ export function TripsPage({ isDark, toggleTheme, onNavigate, onViewTripDetail }:
   const [currentPage, setCurrentPage] = useState(1);
   const [allTrips, setAllTrips] = useState<Trip[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [recentViewedTrip, setRecentViewedTrip] = useState<null | {
+    tripId: string;
+    title?: string;
+    destination?: string;
+    country?: string;
+    category?: string;
+    organizerId?: string;
+    organizerName?: string;
+    viewedAt?: number;
+  }>(null);
   const [filters, setFilters] = useState<TripFilters>({
     destination: "",
     category: [],
@@ -288,6 +298,18 @@ export function TripsPage({ isDark, toggleTheme, onNavigate, onViewTripDetail }:
 
   useEffect(() => {
     fetchTripsFromBackend();
+  }, []);
+
+  useEffect(() => {
+    try {
+      const storedRecentTrip = localStorage.getItem("recentViewedTrip");
+      if (storedRecentTrip) {
+        setRecentViewedTrip(JSON.parse(storedRecentTrip));
+      }
+    } catch (error) {
+      console.error("Error reading recent trip:", error);
+      setRecentViewedTrip(null);
+    }
   }, []);
 
   const fetchTripsFromBackend = async () => {
@@ -383,10 +405,111 @@ export function TripsPage({ isDark, toggleTheme, onNavigate, onViewTripDetail }:
   const endIndex = startIndex + tripsPerPage;
   const currentTrips = filteredTrips.slice(startIndex, endIndex);
 
-  // Get recommended trips (top-rated trips from filtered results, limit to 5)
-  const recommendedTrips = filteredTrips
-    .sort((a, b) => b.organizerRating - a.organizerRating)
-    .slice(0, 5);
+  const recommendedTrips = (() => {
+    if (!recentViewedTrip) {
+      return filteredTrips
+        .slice()
+        .sort((a, b) => b.organizerRating - a.organizerRating)
+        .slice(0, 5);
+    }
+
+    const recentTrip = filteredTrips.find((trip) => String(trip.id) === String(recentViewedTrip.tripId));
+    const recentDestination = (recentViewedTrip.destination || "").toLowerCase();
+    const recentCountry = (recentViewedTrip.country || "").toLowerCase();
+    const recentCategory = (recentViewedTrip.category || "").toLowerCase();
+    const recentOrganizerId = (recentViewedTrip.organizerId || "").toLowerCase();
+    const recentDuration = Number(recentViewedTrip.duration) || 0;
+    const recentBudgetMin = Number(recentViewedTrip.budgetMin) || 0;
+    const recentBudgetMax = Number(recentViewedTrip.budgetMax) || 0;
+
+    const scoredTrips = filteredTrips
+      .filter((trip) => String(trip.id) !== String(recentViewedTrip.tripId))
+      .map((trip) => {
+        let score = 0;
+        const tripDestination = trip.destination.toLowerCase();
+        const tripCountry = trip.country.toLowerCase();
+        const tripCategory = trip.category.toLowerCase();
+        const organizerMatch = recentOrganizerId && trip.organizerId.toLowerCase() === recentOrganizerId;
+
+        if (recentCategory && tripCategory === recentCategory) score += 5;
+        if (recentDestination && (tripDestination.includes(recentDestination) || recentDestination.includes(tripDestination))) score += 4;
+        if (recentCountry && (tripCountry.includes(recentCountry) || recentCountry.includes(tripCountry))) score += 3;
+
+        const durationGap = recentDuration > 0 ? Math.abs(trip.duration - recentDuration) : 0;
+        if (recentDuration > 0) {
+          if (durationGap === 0) score += 4;
+          else if (durationGap <= 2) score += 3;
+          else if (durationGap <= 4) score += 2;
+          else if (durationGap <= 7) score += 1;
+        }
+
+        if (recentBudgetMax > 0) {
+          const budgetOverlap = trip.budgetMin <= recentBudgetMax && trip.budgetMax >= recentBudgetMin;
+          if (budgetOverlap) {
+            score += 3;
+          } else {
+            const budgetCenter = (trip.budgetMin + trip.budgetMax) / 2;
+            const recentCenter = (recentBudgetMin + recentBudgetMax) / 2;
+            const budgetGap = Math.abs(budgetCenter - recentCenter);
+            if (budgetGap <= 250) score += 2;
+            else if (budgetGap <= 600) score += 1;
+          }
+        }
+
+        score += Math.min(2, trip.organizerRating / 2);
+        if (organizerMatch) {
+          score += 0.5;
+        }
+
+        if (trip.availableSpots <= 0) {
+          score -= 2;
+        } else if (trip.availableSpots <= 3) {
+          score -= 0.5;
+        }
+
+        return { trip, score };
+      })
+      .sort((a, b) => b.score - a.score || b.trip.organizerRating - a.trip.organizerRating);
+
+    const selectedTrips: Trip[] = [];
+    const organizerCounts = new Map<string, number>();
+
+    for (const entry of scoredTrips) {
+      const organizerKey = String(entry.trip.organizerId || "").toLowerCase();
+      const count = organizerCounts.get(organizerKey) || 0;
+
+      if (count >= 1) {
+        continue;
+      }
+
+      selectedTrips.push(entry.trip);
+      organizerCounts.set(organizerKey, count + 1);
+
+      if (selectedTrips.length >= 5) {
+        break;
+      }
+    }
+
+    if (selectedTrips.length < 5) {
+      for (const entry of scoredTrips) {
+        if (selectedTrips.length >= 5) {
+          break;
+        }
+
+        if (selectedTrips.some((trip) => String(trip.id) === String(entry.trip.id))) {
+          continue;
+        }
+
+        selectedTrips.push(entry.trip);
+      }
+    }
+
+    if (selectedTrips.length > 0) {
+      return selectedTrips.slice(0, 5);
+    }
+
+    return recentTrip ? [recentTrip, ...filteredTrips.filter((trip) => String(trip.id) !== String(recentViewedTrip.tripId)).slice(0, 4)] : filteredTrips.slice(0, 5);
+  })();
 
   // Reset to page 1 when filters change
   const handleFilterChange = (newFilters: TripFilters) => {
@@ -484,7 +607,9 @@ export function TripsPage({ isDark, toggleTheme, onNavigate, onViewTripDetail }:
                         Recommended for you
                       </h2>
                       <p className="text-sm text-slate-600 dark:text-slate-400">
-                        Based on your preferences and selected filters
+                        {recentViewedTrip
+                          ? `Based on your recent visit to ${recentViewedTrip.title || recentViewedTrip.destination || "a trip"}`
+                          : "Based on your preferences and selected filters"}
                       </p>
                     </div>
                   </div>

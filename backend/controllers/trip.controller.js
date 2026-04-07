@@ -298,6 +298,13 @@ export const getOrganizerTrips = async (req, res) => {
 
     const trips = await Trip.find({ organizer: organizerId })
       .populate('organizer', 'userId fullName profilePicture role organizationName')
+      .populate({
+        path: 'bookings',
+        populate: {
+          path: 'traveler',
+          select: 'userId fullName email profilePicture role',
+        },
+      })
       .sort({ createdAt: -1 })
       .limit(parseInt(limit))
       .skip(skip)
@@ -422,7 +429,15 @@ export const updateTrip = async (req, res) => {
     trip = await Trip.findByIdAndUpdate(tripId, updatePayload, {
       new: true,
       runValidators: true,
-    }).populate('organizer', 'userId fullName profilePicture role organizationName');
+    })
+      .populate('organizer', 'userId fullName profilePicture role organizationName')
+      .populate({
+        path: 'bookings',
+        populate: {
+          path: 'traveler',
+          select: 'userId fullName email profilePicture role',
+        },
+      });
 
     res.status(200).json({
       success: true,
@@ -527,6 +542,14 @@ export const bookTrip = async (req, res) => {
   try {
     const { tripId } = req.params;
     const travelerId = req.user._id;
+    const {
+      fullName,
+      age,
+      gender,
+      phoneNumber,
+      email,
+      idProofImage,
+    } = req.body || {};
 
     if (req.user.role !== 'traveler') {
       return res.status(403).json({
@@ -578,12 +601,40 @@ export const bookTrip = async (req, res) => {
       });
     }
 
+    const normalizedFullName = typeof fullName === 'string' ? fullName.trim() : '';
+    const normalizedGender = typeof gender === 'string' ? gender.trim() : '';
+    const normalizedPhoneNumber = typeof phoneNumber === 'string' ? phoneNumber.trim() : '';
+    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    const normalizedIdProofImage = typeof idProofImage === 'string' ? idProofImage.trim() : '';
+    const parsedAge = Number(age);
+
+    if (
+      !normalizedFullName ||
+      !Number.isInteger(parsedAge) ||
+      parsedAge < 1 ||
+      !normalizedGender ||
+      !normalizedPhoneNumber ||
+      !normalizedEmail ||
+      !normalizedIdProofImage
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide all traveller booking details',
+      });
+    }
+
     const booking = await Booking.create({
       trip: trip._id,
       traveler: travelerId,
       organizer: trip.organizer._id,
       status: 'confirmed',
       priceAtBooking: trip.priceMin,
+      fullName: normalizedFullName,
+      age: parsedAge,
+      gender: normalizedGender,
+      phoneNumber: normalizedPhoneNumber,
+      email: normalizedEmail,
+      idProofImage: normalizedIdProofImage,
     });
 
     trip.availableSpots = Math.max(0, trip.availableSpots - 1);
@@ -592,7 +643,7 @@ export const bookTrip = async (req, res) => {
 
     const populatedBooking = await Booking.findById(booking._id)
       .populate('trip', 'title destination startDate endDate coverImage')
-      .populate('traveler', 'userId fullName profilePicture role')
+      .populate('traveler', 'userId fullName email profilePicture role')
       .populate('organizer', 'userId fullName profilePicture role organizationName');
 
     res.status(201).json({
@@ -619,6 +670,71 @@ export const bookTrip = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error booking trip',
+      error: error.message,
+    });
+  }
+};
+
+// Cancel a trip booking (traveler only)
+export const cancelTripBooking = async (req, res) => {
+  try {
+    const { tripId } = req.params;
+    const travelerId = req.user._id;
+
+    if (req.user.role !== 'traveler') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only travelers can cancel trip bookings',
+      });
+    }
+
+    const trip = await Trip.findById(tripId);
+
+    if (!trip) {
+      return res.status(404).json({
+        success: false,
+        message: 'Trip not found',
+      });
+    }
+
+    const booking = await Booking.findOne({
+      trip: trip._id,
+      traveler: travelerId,
+      status: 'confirmed',
+    });
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active booking found for this trip',
+      });
+    }
+
+    booking.status = 'cancelled';
+    await booking.save();
+
+    trip.availableSpots = Math.min(trip.totalSpots, (trip.availableSpots || 0) + 1);
+    trip.bookings = trip.bookings.filter(
+      (bookingId) => bookingId.toString() !== booking._id.toString()
+    );
+    await trip.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Trip booking cancelled successfully',
+      data: {
+        trip: {
+          _id: trip._id,
+          availableSpots: trip.availableSpots,
+          totalSpots: trip.totalSpots,
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Cancel booking error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error cancelling trip booking',
       error: error.message,
     });
   }
