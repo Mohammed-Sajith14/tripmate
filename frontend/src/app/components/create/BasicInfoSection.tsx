@@ -1,26 +1,7 @@
 import { useEffect, useState } from "react";
 import { UseFormRegister, FieldErrors, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import { TripFormData } from "./CreateTripPage";
-
-const resolveApiBaseUrl = () => {
-  const configuredBaseUrl = (import.meta as any)?.env?.VITE_API_BASE_URL;
-  if (typeof configuredBaseUrl === "string" && configuredBaseUrl.trim() !== "") {
-    return configuredBaseUrl.trim().replace(/\/+$/, "");
-  }
-
-  if (typeof window !== "undefined") {
-    const { hostname, origin } = window.location;
-    if (hostname === "localhost" || hostname === "127.0.0.1") {
-      return "http://localhost:5000/api";
-    }
-
-    return `${origin.replace(/\/+$/, "")}/api`;
-  }
-
-  return "http://localhost:5000/api";
-};
-
-const API_BASE_URL = resolveApiBaseUrl();
+import { API_BASE_URL } from "../../../utils/auth";
 
 interface LocationSuggestion {
   name: string;

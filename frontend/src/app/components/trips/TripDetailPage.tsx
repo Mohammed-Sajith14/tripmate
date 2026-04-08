@@ -22,27 +22,7 @@ import {
 import { Trip } from "./TripsPage";
 import { ImageWithFallback } from "../figma/ImageWithFallback";
 import { toast } from "sonner";
-import { clearAuthSession, getValidAuthToken } from "../../../utils/auth";
-
-const resolveApiBaseUrl = () => {
-  const configuredBaseUrl = (import.meta as any)?.env?.VITE_API_BASE_URL;
-  if (typeof configuredBaseUrl === "string" && configuredBaseUrl.trim() !== "") {
-    return configuredBaseUrl.trim().replace(/\/+$/, "");
-  }
-
-  if (typeof window !== "undefined") {
-    const { hostname, origin } = window.location;
-    if (hostname === "localhost" || hostname === "127.0.0.1") {
-      return "http://localhost:5000/api";
-    }
-
-    return `${origin.replace(/\/+$/, "")}/api`;
-  }
-
-  return "http://localhost:5000/api";
-};
-
-const API_BASE_URL = resolveApiBaseUrl();
+import { API_BASE_URL, clearAuthSession, getValidAuthToken } from "../../../utils/auth";
 
 interface TripDetailPageProps {
   trip: Trip;
