@@ -75,21 +75,29 @@ export const queryChatbot = async (req, res) => {
       });
     }
 
-    const indexReady = await ragArtifactsExist();
-    if (!indexReady) {
-      return res.status(503).json({
-        success: false,
-        message:
-          'RAG index not found. Build it first by running: npm run rag:build-index (inside backend).',
-      });
-    }
-
     const normalizedMessage = message.trim();
     const topK = Number(process.env.RAG_TOP_K) || 3;
+    const indexReady = await ragArtifactsExist();
 
-    console.time(`[chatbot] faiss-retrieval ${requestId}`);
-    const retrievedDocs = await retrieveRelevantTrips({ query: normalizedMessage, topK });
-    console.timeEnd(`[chatbot] faiss-retrieval ${requestId}`);
+    let retrievedDocs = [];
+    let retrievalUnavailable = false;
+    let retrievalErrorMessage = null;
+
+    if (indexReady) {
+      try {
+        console.time(`[chatbot] faiss-retrieval ${requestId}`);
+        retrievedDocs = await retrieveRelevantTrips({ query: normalizedMessage, topK });
+        console.timeEnd(`[chatbot] faiss-retrieval ${requestId}`);
+      } catch (retrievalError) {
+        retrievalUnavailable = true;
+        retrievalErrorMessage = retrievalError?.message || 'RAG retrieval failed';
+        console.error('RAG retrieval failed, continuing without context:', retrievalErrorMessage);
+      }
+    } else {
+      retrievalUnavailable = true;
+      retrievalErrorMessage = 'RAG index is not ready';
+      console.warn('RAG index is missing, continuing without retrieval context');
+    }
 
     let reply = '';
     let llmUnavailable = false;
@@ -115,6 +123,9 @@ export const queryChatbot = async (req, res) => {
         sources: buildSources(retrievedDocs),
         meta: {
           llmUnavailable,
+          indexReady,
+          retrievalUnavailable,
+          retrievalErrorMessage,
         },
       },
     });
